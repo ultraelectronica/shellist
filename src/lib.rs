@@ -1,14 +1,7 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+// Shell history analysis lib. Parses, counts, ranks commands.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod models;
+pub mod parsers;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use models::HistoryEntry;
+pub use parsers::{parse_history, DefaultHistoryParser, HistoryParser};
