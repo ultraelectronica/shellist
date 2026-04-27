@@ -50,8 +50,8 @@
 
 **Goal:** Make it practical.
 
-- [ ] `load_history_file(path: &str) -> io::Result<String>`
-- [ ] Default path support (`~/.bash_history`)
+- [X] `load_history_file(path: &str) -> io::Result<String>`
+- [X] Default path support (`~/.bash_history`)
 
 ---
 
@@ -59,7 +59,7 @@
 
 **Goal:** Clean, composable interface.
 
-- [ ] `analyze(input: &str) -> Vec<(String, usize)>` — full pipeline entry point
+- [X] `analyze(input: &str) -> Vec<(String, usize)>` — full pipeline entry point
 
 ---
 
