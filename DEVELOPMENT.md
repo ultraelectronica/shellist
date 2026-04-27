@@ -40,9 +40,9 @@
 
 **Goal:** Make the library flexible.
 
-- [ ] `top_n(commands, n)` — return top N results
-- [ ] `filter_commands(commands, ignore)` — ignore list
-- [ ] Min frequency threshold
+- [X] `top_n(commands, n)` — return top N results
+- [X] `filter_commands(commands, ignore)` — ignore list
+- [X] Min frequency threshold
 
 ---
 
