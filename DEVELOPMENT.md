@@ -4,16 +4,16 @@
 
 **Goal:** Read `.bash_history` and extract commands cleanly.
 
-- [ ] Create `HistoryEntry` struct
+- [X] Create `HistoryEntry` struct
   ```rust
   pub struct HistoryEntry {
       pub raw: String,
       pub command: String,
   }
   ```
-- [ ] Implement `parse_history(input: &str) -> Vec<HistoryEntry>`
-- [ ] Handle empty lines, leading/trailing whitespace
-- [ ] Extract first token as the command (e.g. `git commit -m "msg"` → `git`)
+- [X] Implement `parse_history(input: &str) -> Vec<HistoryEntry>`
+- [X] Handle empty lines, leading/trailing whitespace
+- [X] Extract first token as the command (e.g. `git commit -m "msg"` → `git`)
 
 ---
 
@@ -21,8 +21,8 @@
 
 **Goal:** Count command usage.
 
-- [ ] Implement `count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize>`
-- [ ] Normalize: lowercase commands, trim spaces
+- [X] Implement `count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize>`
+- [X] Normalize: lowercase commands, trim spaces
 
 ---
 
