@@ -30,9 +30,9 @@
 
 **Goal:** Sort commands by frequency.
 
-- [ ] Implement `rank_commands(map: HashMap<String, usize>) -> Vec<(String, usize)>`
-- [ ] Sort descending by count
-- [ ] Tie-break alphabetically (optional)
+- [X] Implement `rank_commands(map: HashMap<String, usize>) -> Vec<(String, usize)>`
+- [X] Sort descending by count
+- [X] Tie-break alphabetically (optional)
 
 ---
 
