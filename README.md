@@ -11,22 +11,26 @@ cargo install shellist
 ## CLI
 
 ```sh
-shellist                   # reads ~/.bash_history, prints ranked table
-shellist --top 5           # top 5 only
-shellist --ignore ls,cd    # exclude ls and cd
-shellist --min 3           # only commands used ≥ 3 times
+shellist                      # reads ~/.bash_history, prints ranked table
+shellist --top 5              # top 5 only
+shellist --ignore ls,cd       # exclude ls and cd
+shellist --no-default-ignore  # include bash internals (set, shopt)
+shellist --min 3              # only commands used ≥ 3 times
 shellist --path ./my_history.txt
 ```
 
 Options:
 
-| Flag            | Description                          |
-|-----------------|--------------------------------------|
-| `--top N`       | Show top N commands                  |
-| `--ignore X,Y`  | Exclude commands (comma-separated)   |
-| `--min N`       | Only commands with count ≥ N         |
-| `--path PATH`   | Read from PATH (default: ~/.bash_history) |
-| `--help`        | Print help                          |
+| Flag              | Description                          |
+|-------------------|--------------------------------------|
+| `--top N`         | Show top N commands                  |
+| `--ignore X,Y`    | Exclude commands (comma-separated)   |
+| `--no-default-ignore` | Don't filter bash internals (set, shopt) |
+| `--min N`         | Only commands with count ≥ N         |
+| `--path PATH`     | Read from PATH (default: ~/.bash_history) |
+| `--help`          | Print help                          |
+
+By default, `set` and `shopt` are ignored — these are bash internals that often leak into `.bash_history` from shell init scripts, not commands you actually typed. Use `--no-default-ignore` to see them.
 
 Example output:
 

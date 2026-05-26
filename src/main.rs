@@ -11,11 +11,12 @@
 //! ```
 //!
 //! Options:
-//! - `--top N`       Show only the top N commands
-//! - `--ignore X,Y`  Exclude commands (comma-separated)
-//! - `--min N`       Only commands with count >= N
-//! - `--path P`      Read from `P` instead of `~/.bash_history`
-//! - `--help`        Print this
+//! - `--top N`            Show only the top N commands
+//! - `--ignore X,Y`       Exclude commands (comma-separated)
+//! - `--no-default-ignore` Disable the built-in ignore list
+//! - `--min N`            Only commands with count >= N
+//! - `--path P`           Read from `P` instead of `~/.bash_history`
+//! - `--help`             Print this
 
 use std::env;
 use std::process;
@@ -25,9 +26,14 @@ use shellist::{
     top_n,
 };
 
+/// Bash builtins that often leak into `.bash_history` from shell init scripts.
+/// These are internal calls the shell makes, not user-typed commands.
+const DEFAULT_IGNORE: &[&str] = &["set", "shopt"];
+
 struct Args {
     top: Option<usize>,
     ignore: Vec<String>,
+    no_default_ignore: bool,
     min_freq: Option<usize>,
     path: Option<String>,
 }
@@ -36,6 +42,7 @@ fn parse_args() -> Args {
     let mut args = Args {
         top: None,
         ignore: Vec::new(),
+        no_default_ignore: false,
         min_freq: None,
         path: None,
     };
@@ -63,6 +70,9 @@ fn parse_args() -> Args {
                     process::exit(1);
                 });
                 args.ignore = val.split(',').map(|s| s.trim().to_string()).collect();
+            }
+            "--no-default-ignore" => {
+                args.no_default_ignore = true;
             }
             "--min" => {
                 let val = iter.next().unwrap_or_else(|| {
@@ -99,11 +109,13 @@ USAGE:
     shellist [OPTIONS]
 
 OPTIONS:
-    --top N        Show only the top N commands
-    --ignore X,Y   Exclude commands (comma-separated)
-    --min N        Only commands used at least N times
-    --path PATH    Read from PATH instead of ~/.bash_history
-    --help         Print this help"
+    --top N            Show only the top N commands
+    --ignore X,Y       Exclude commands (comma-separated)
+    --no-default-ignore Disable built-in ignore list ({})
+    --min N            Only commands used at least N times
+    --path PATH        Read from PATH instead of ~/.bash_history
+    --help             Print this help",
+        DEFAULT_IGNORE.join(", ")
     );
 }
 
@@ -170,8 +182,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut ranked = analyze(&content);
 
-    if !args.ignore.is_empty() {
-        ranked = filter_commands(ranked, &args.ignore);
+    let ignore: Vec<String> = if args.no_default_ignore {
+        args.ignore
+    } else {
+        let mut merged = DEFAULT_IGNORE
+            .iter()
+            .map(|&s| s.to_string())
+            .collect::<Vec<_>>();
+        merged.extend(args.ignore);
+        merged
+    };
+    if !ignore.is_empty() {
+        ranked = filter_commands(ranked, &ignore);
     }
     if let Some(min) = args.min_freq {
         ranked = filter_by_min_frequency(ranked, min);
