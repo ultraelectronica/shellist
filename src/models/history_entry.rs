@@ -1,12 +1,17 @@
-// One parsed line from bash history.
+/// One parsed line from bash history.
+///
+/// Holds the raw input line and the extracted base command.
+/// The command is the first whitespace-delimited token (`git` from `git push -f`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryEntry {
+    /// The full raw line exactly as it appeared in the history file.
     pub raw: String,
+    /// The extracted base command (first token, no args).
     pub command: String,
 }
 
 impl HistoryEntry {
-    // Build it. That's it.
+    /// Create a new entry from a raw line and its extracted command.
     pub fn new(raw: impl Into<String>, command: impl Into<String>) -> Self {
         Self {
             raw: raw.into(),

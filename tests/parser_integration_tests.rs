@@ -1,4 +1,4 @@
-use shellist::{parse_history, DefaultHistoryParser, HistoryEntry, HistoryParser};
+use shellist::{DefaultHistoryParser, HistoryEntry, HistoryParser, parse_history};
 
 #[test]
 fn integration_parse_full_pipeline() {

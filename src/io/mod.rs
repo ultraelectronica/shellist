@@ -1,4 +1,4 @@
-// File I/O for loading history files from disk.
+//! File I/O for loading history files from disk.
 
 pub mod file_loader;
 

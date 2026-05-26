@@ -2,5 +2,22 @@
 name = "shellist"
 version = "0.1.0"
 edition = "2024"
+description = "Shell history analysis. Parses .bash_history, counts commands, and ranks by frequency."
+license = "MIT"
+repository = "https://github.com/ultraelectronica/shellist"
+documentation = "https://docs.rs/shellist"
+keywords = ["shell", "history", "bash", "cli", "analytics"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "shellist"
+path = "src/main.rs"
 
 [dependencies]
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "pipeline"
+harness = false

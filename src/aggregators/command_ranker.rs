@@ -1,14 +1,21 @@
 use std::collections::HashMap;
 
-// Sort commands by frequency. Descending count, alphabetical tie-break.
-// Takes the raw counter output and turns it into a ranked list.
+/// Sort commands by frequency descending, with alphabetical tie-breaking.
+///
+/// ```rust
+/// let mut map = std::collections::HashMap::new();
+/// map.insert("git".into(), 3);
+/// map.insert("ls".into(), 5);
+/// map.insert("cd".into(), 1);
+/// let ranked = shellist::rank_commands(map);
+/// assert_eq!(ranked[0], ("ls".to_string(), 5));
+/// assert_eq!(ranked[1], ("git".to_string(), 3));
+/// assert_eq!(ranked[2], ("cd".to_string(), 1));
+/// ```
 pub fn rank_commands(map: HashMap<String, usize>) -> Vec<(String, usize)> {
     let mut ranked: Vec<(String, usize)> = map.into_iter().collect();
 
-    ranked.sort_by(|a, b| {
-        b.1.cmp(&a.1)
-            .then_with(|| a.0.cmp(&b.0))
-    });
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
     ranked
 }

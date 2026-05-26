@@ -2,8 +2,22 @@ use std::collections::HashMap;
 
 use crate::models::HistoryEntry;
 
-// Count how many times each command was run.
-// Normalizes to lowercase so "Git" and "git" don't get counted separately.
+/// Count how many times each command appears.
+///
+/// Normalizes to lowercase so `Git` and `git` merge into one count.
+/// Skips empty commands.
+///
+/// ```rust
+/// use shellist::{HistoryEntry, count_commands};
+/// let entries = [
+///     HistoryEntry::new("ls -la", "ls"),
+///     HistoryEntry::new("ls", "ls"),
+///     HistoryEntry::new("Git status", "Git"),
+/// ];
+/// let counts = count_commands(&entries);
+/// assert_eq!(counts.get("ls"), Some(&2));
+/// assert_eq!(counts.get("git"), Some(&1));
+/// ```
 pub fn count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize> {
     let mut counts = HashMap::new();
 

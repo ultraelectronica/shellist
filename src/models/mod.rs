@@ -1,4 +1,4 @@
-// Domain models for shell history shit.
+//! Domain types for shell history entries.
 
 pub mod history_entry;
 
