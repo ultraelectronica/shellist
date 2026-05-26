@@ -1,11 +1,28 @@
 use std::collections::HashSet;
 
-// Keep only the top N entries from a ranked list.
+/// Keep only the top N entries.
+///
+/// If N exceeds the list length, returns all entries. Zero returns an empty vec.
+///
+/// ```rust
+/// let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 3)];
+/// let top = shellist::top_n(commands, 2);
+/// assert_eq!(top.len(), 2);
+/// assert_eq!(top[0], ("ls".to_string(), 10));
+/// ```
 pub fn top_n(commands: Vec<(String, usize)>, n: usize) -> Vec<(String, usize)> {
     commands.into_iter().take(n).collect()
 }
 
-// Drop commands whose name matches anything in the ignore list.
+/// Remove commands whose name is in the ignore list.
+///
+/// Accepts `&[String]`, `&[&str]`, or any `AsRef<str>`.
+///
+/// ```rust
+/// let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 3)];
+/// let filtered = shellist::filter_commands(commands, &["git", "cd"]);
+/// assert_eq!(filtered, vec![("ls".to_string(), 10)]);
+/// ```
 pub fn filter_commands<S: AsRef<str>>(
     commands: Vec<(String, usize)>,
     ignore: &[S],
@@ -17,11 +34,14 @@ pub fn filter_commands<S: AsRef<str>>(
         .collect()
 }
 
-// Drop commands below a minimum frequency threshold.
-pub fn filter_by_min_frequency(
-    commands: Vec<(String, usize)>,
-    min: usize,
-) -> Vec<(String, usize)> {
+/// Remove commands whose count is below the given minimum.
+///
+/// ```rust
+/// let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 1)];
+/// let frequent = shellist::filter_by_min_frequency(commands, 2);
+/// assert_eq!(frequent.len(), 2);
+/// ```
+pub fn filter_by_min_frequency(commands: Vec<(String, usize)>, min: usize) -> Vec<(String, usize)> {
     commands
         .into_iter()
         .filter(|(_, count)| *count >= min)
@@ -34,11 +54,7 @@ mod tests {
 
     #[test]
     fn top_n_returns_first_n() {
-        let commands = vec![
-            ("ls".into(), 10),
-            ("git".into(), 5),
-            ("cd".into(), 3),
-        ];
+        let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 3)];
         let result = top_n(commands, 2);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], ("ls".into(), 10));
@@ -68,11 +84,7 @@ mod tests {
 
     #[test]
     fn filter_commands_removes_matching() {
-        let commands = vec![
-            ("ls".into(), 10),
-            ("git".into(), 5),
-            ("cd".into(), 3),
-        ];
+        let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 3)];
         let result = filter_commands(commands, &["git".to_string()]);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0, "ls");
@@ -81,11 +93,7 @@ mod tests {
 
     #[test]
     fn filter_commands_with_str_slices() {
-        let commands = vec![
-            ("ls".into(), 10),
-            ("git".into(), 5),
-            ("cd".into(), 3),
-        ];
+        let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 3)];
         let result = filter_commands(commands, &["git", "cd"]);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, "ls");
@@ -93,10 +101,7 @@ mod tests {
 
     #[test]
     fn filter_commands_nothing_ignored() {
-        let commands = vec![
-            ("ls".into(), 10),
-            ("git".into(), 5),
-        ];
+        let commands = vec![("ls".into(), 10), ("git".into(), 5)];
         let result: Vec<(String, usize)> = filter_commands(commands, &[] as &[&str]);
         assert_eq!(result.len(), 2);
     }
@@ -117,11 +122,7 @@ mod tests {
 
     #[test]
     fn min_frequency_filters_below_threshold() {
-        let commands = vec![
-            ("ls".into(), 10),
-            ("git".into(), 5),
-            ("cd".into(), 1),
-        ];
+        let commands = vec![("ls".into(), 10), ("git".into(), 5), ("cd".into(), 1)];
         let result = filter_by_min_frequency(commands, 2);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0, "ls");
@@ -130,10 +131,7 @@ mod tests {
 
     #[test]
     fn min_frequency_exact_threshold() {
-        let commands = vec![
-            ("ls".into(), 3),
-            ("git".into(), 2),
-        ];
+        let commands = vec![("ls".into(), 3), ("git".into(), 2)];
         let result = filter_by_min_frequency(commands, 3);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, "ls");

@@ -1,4 +1,4 @@
-// Aggregation shit. Counts, groups, tallies, filters commands.
+//! Command aggregation: counting, ranking, and filtering.
 
 pub mod command_counter;
 pub mod command_filter;

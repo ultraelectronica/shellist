@@ -1,13 +1,13 @@
-// Parsers turn raw history text into actual structs.
+//! Parsers turn raw history text into structured entries.
 
 pub mod default_history_parser;
 
-pub use default_history_parser::{parse_history, DefaultHistoryParser};
+pub use default_history_parser::{DefaultHistoryParser, parse_history};
 
 use crate::models::HistoryEntry;
 
-// Trait so you can swap parsers without touching caller code.
-// Want zsh format? Implement this. Done.
+/// Swappable parser trait. Implement this for zsh, fish, etc.
 pub trait HistoryParser {
+    /// Parse raw history text into a list of [`HistoryEntry`]s.
     fn parse(&self, input: &str) -> Vec<HistoryEntry>;
 }

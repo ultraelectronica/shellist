@@ -67,10 +67,10 @@
 
 **Goal:** Correctness.
 
-- [ ] Unit tests for parsing
-- [ ] Unit tests for counting
-- [ ] Unit tests for sorting
-- [ ] Integration test: `analyze("ls\nls\ngit\n")` → `ls` ranked first
+- [X] Unit tests for parsing
+- [X] Unit tests for counting
+- [X] Unit tests for sorting
+- [X] Integration test: `analyze("ls\nls\ngit\n")` → `ls` ranked first
 
 ---
 
@@ -78,9 +78,9 @@
 
 **Goal:** Handle large history files.
 
-- [ ] Avoid unnecessary allocations
-- [ ] Use iterators over cloning
-- [ ] Benchmark with large inputs
+- [X] Avoid unnecessary allocations
+- [X] Use iterators over cloning
+- [X] Benchmark with large inputs
 
 ---
 
@@ -88,21 +88,21 @@
 
 **Goal:** Usable and readable.
 
-- [ ] `///` doc comments on all public items
-- [ ] Example usage in doc comments
-- [ ] Crate-level documentation
+- [X] `///` doc comments on all public items
+- [X] Example usage in doc comments
+- [X] Crate-level documentation
 
 ---
 
-## Phase 10: CLI Layer (Optional)
+## Phase 10: CLI Layer
 
 **Goal:** Standalone binary.
 
-- [ ] Argument parsing (`std::env::args`)
-- [ ] Pretty output:
+- [X] Argument parsing (`std::env::args`)
+- [X] Pretty output:
   ```
   1. ls     120
   2. git    95
   3. cd     80
   ```
-- [ ] Depend on `shellist` library via path
+- [X] Depend on `shellist` library via path
