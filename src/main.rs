@@ -202,7 +202,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         ranked = top_n(ranked, n);
     }
 
-    print_table(&ranked);
+    if ranked.is_empty() {
+        let path_display = args
+            .path
+            .clone()
+            .unwrap_or_else(|| default_history_path().to_string_lossy().into_owned());
+        if content.trim().is_empty() {
+            eprintln!("shellist: no history found in {path_display}");
+        } else {
+            eprintln!(
+                "shellist: all commands were filtered out (default ignores: {}). \
+                 Use --no-default-ignore to show everything.",
+                DEFAULT_IGNORE.join(", ")
+            );
+        }
+    } else {
+        print_table(&ranked);
+    }
     Ok(())
 }
 
