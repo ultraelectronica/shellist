@@ -19,16 +19,49 @@ use crate::models::HistoryEntry;
 /// assert_eq!(counts.get("git"), Some(&1));
 /// ```
 pub fn count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
+    count_commands_at_depth(entries, 1)
+}
 
+/// Count commands treating the first `depth` whitespace tokens as the key.
+///
+/// `depth = 1` is the default (first token only). `depth = 2` ranks
+/// multi-word commands like `git commit` and `git push` separately.
+///
+/// ```rust
+/// use shellist::{HistoryEntry, count_commands_at_depth};
+/// let entries = [
+///     HistoryEntry::new("git commit", "git"),
+///     HistoryEntry::new("git push", "git"),
+///     HistoryEntry::new("git commit", "git"),
+/// ];
+/// let counts = count_commands_at_depth(&entries, 2);
+/// assert_eq!(counts.get("git commit"), Some(&2));
+/// assert_eq!(counts.get("git push"), Some(&1));
+/// ```
+pub fn count_commands_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMap<String, usize> {
+    let mut counts = HashMap::new();
+    if depth == 0 {
+        return counts;
+    }
     for entry in entries {
-        let normalized = entry.command.trim().to_lowercase();
-        if normalized.is_empty() {
+        let mut tokens = entry.raw.split_whitespace().take(depth);
+        let key = tokens.next();
+        let key = match key {
+            Some(first) => {
+                let mut s = String::from(first);
+                for t in tokens {
+                    s.push(' ');
+                    s.push_str(t);
+                }
+                s.to_lowercase()
+            }
+            None => continue,
+        };
+        if key.is_empty() {
             continue;
         }
-        *counts.entry(normalized).or_insert(0) += 1;
+        *counts.entry(key).or_insert(0) += 1;
     }
-
     counts
 }
 
@@ -86,5 +119,44 @@ mod tests {
         let entries: Vec<HistoryEntry> = vec![];
         let counts = count_commands(&entries);
         assert!(counts.is_empty());
+    }
+
+    #[test]
+    fn depth_one_matches_count_commands() {
+        let entries = vec![
+            HistoryEntry::new("ls -la", "ls"),
+            HistoryEntry::new("git status", "git"),
+            HistoryEntry::new("ls", "ls"),
+        ];
+        let d1 = count_commands_at_depth(&entries, 1);
+        assert_eq!(d1["ls"], 2);
+        assert_eq!(d1["git"], 1);
+    }
+
+    #[test]
+    fn depth_two_separates_subcommands() {
+        let entries = vec![
+            HistoryEntry::new("git commit", "git"),
+            HistoryEntry::new("git push", "git"),
+            HistoryEntry::new("git commit -m x", "git"),
+            HistoryEntry::new("ls", "ls"),
+        ];
+        let d2 = count_commands_at_depth(&entries, 2);
+        assert_eq!(d2.get("git commit"), Some(&2));
+        assert_eq!(d2.get("git push"), Some(&1));
+        assert_eq!(d2.get("ls"), Some(&1));
+    }
+
+    #[test]
+    fn depth_zero_returns_empty() {
+        let entries = vec![HistoryEntry::new("ls", "ls")];
+        assert!(count_commands_at_depth(&entries, 0).is_empty());
+    }
+
+    #[test]
+    fn depth_exceeding_tokens_uses_whole_line() {
+        let entries = vec![HistoryEntry::new("git push", "git")];
+        let d5 = count_commands_at_depth(&entries, 5);
+        assert_eq!(d5.get("git push"), Some(&1));
     }
 }

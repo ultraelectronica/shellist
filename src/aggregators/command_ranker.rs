@@ -20,6 +20,23 @@ pub fn rank_commands(map: HashMap<String, usize>) -> Vec<(String, usize)> {
     ranked
 }
 
+/// Like [`rank_commands`] but ascending: lowest count first, alphabetical tie-break.
+///
+/// ```rust
+/// let mut map = std::collections::HashMap::new();
+/// map.insert("git".into(), 3);
+/// map.insert("ls".into(), 5);
+/// let ranked = shellist::rank_commands_ascending(map);
+/// assert_eq!(ranked[0], ("git".to_string(), 3));
+/// ```
+pub fn rank_commands_ascending(map: HashMap<String, usize>) -> Vec<(String, usize)> {
+    let mut ranked: Vec<(String, usize)> = map.into_iter().collect();
+
+    ranked.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+
+    ranked
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,5 +101,31 @@ mod tests {
         assert_eq!(ranked[1], ("emacs".to_string(), 10));
         assert_eq!(ranked[2], ("vim".to_string(), 10));
         assert_eq!(ranked[3], ("nano".to_string(), 5));
+    }
+
+    #[test]
+    fn ascending_orders_lowest_first() {
+        let mut map = HashMap::new();
+        map.insert("git".to_string(), 3);
+        map.insert("ls".to_string(), 5);
+        map.insert("cd".to_string(), 1);
+
+        let ranked = rank_commands_ascending(map);
+
+        assert_eq!(ranked[0], ("cd".to_string(), 1));
+        assert_eq!(ranked[1], ("git".to_string(), 3));
+        assert_eq!(ranked[2], ("ls".to_string(), 5));
+    }
+
+    #[test]
+    fn ascending_tie_breaks_alphabetically() {
+        let mut map = HashMap::new();
+        map.insert("zebra".to_string(), 2);
+        map.insert("alpha".to_string(), 2);
+
+        let ranked = rank_commands_ascending(map);
+
+        assert_eq!(ranked[0], ("alpha".to_string(), 2));
+        assert_eq!(ranked[1], ("zebra".to_string(), 2));
     }
 }
