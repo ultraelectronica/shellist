@@ -2,4 +2,4 @@
 
 pub mod file_loader;
 
-pub use file_loader::{default_history_path, load_history_file};
+pub use file_loader::{default_history_path, default_history_path_for, load_history_file};

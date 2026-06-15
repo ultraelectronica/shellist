@@ -1,33 +1,32 @@
 //! Shellist — shell history analysis CLI.
 //!
-//! Reads `.bash_history`, ranks commands by frequency, prints a table.
+//! Reads shell history (bash, zsh, fish), ranks commands by frequency, and
+//! prints a table. Supports multiple output formats, subcommand depth,
+//! regex filtering, date ranges, trends, and shell completions.
 //!
 //! ```text
-//! $ shellist
-//! Rank  Command  Count
-//! 1     ls       120
-//! 2     git      95
-//! 3     cd       80
+//! $ shellist --top 3 --bars
+//! Rank  Command  Count  Bars
+//! ----  -------  -----  ------------------------------
+//!    1  ls         120  ##############################
+//!    2  git         95  #######################
+//!    3  cd          80  ####################
 //! ```
-//!
-//! Options:
-//! - `--top N`            Show only the top N commands
-//! - `--ignore X,Y`       Exclude commands (comma-separated)
-//! - `--no-default-ignore` Disable the built-in ignore list
-//! - `--min N`            Only commands with count >= N
-//! - `--path P`           Read from `P` instead of `~/.bash_history`
-//! - `--help`             Print this
 
 use std::env;
+use std::io::{IsTerminal, Read};
 use std::process;
 
 use shellist::{
-    analyze, default_history_path, filter_by_min_frequency, filter_commands, load_history_file,
-    top_n,
+    Bucket, HistoryParser, Shell, TableOptions, completions, count_commands_at_depth,
+    default_history_path, detect_shell, filter_by_min_frequency, filter_commands, format_csv,
+    format_json, format_stats, format_table, format_trend, grep_filter, load_history_file,
+    man_page, parse_date_to_unix, rank_commands, rank_commands_ascending, top_n,
 };
 
+use regex::Regex;
+
 /// Bash builtins that often leak into `.bash_history` from shell init scripts.
-/// These are internal calls the shell makes, not user-typed commands.
 const DEFAULT_IGNORE: &[&str] = &["set", "shopt"];
 
 struct Args {
@@ -36,61 +35,112 @@ struct Args {
     no_default_ignore: bool,
     min_freq: Option<usize>,
     path: Option<String>,
+    shell: Option<Shell>,
+    depth: Option<usize>,
+    json: bool,
+    csv: bool,
+    bars: bool,
+    percent: bool,
+    stats: bool,
+    grep: Option<String>,
+    asc: bool,
+    since: Option<String>,
+    until: Option<String>,
+    trend: bool,
+    trend_bucket: Option<Bucket>,
+    output: Option<String>,
+    completions: Option<Shell>,
+    man: bool,
+}
+
+impl Args {
+    const fn empty() -> Self {
+        Self {
+            top: None,
+            ignore: Vec::new(),
+            no_default_ignore: false,
+            min_freq: None,
+            path: None,
+            shell: None,
+            depth: None,
+            json: false,
+            csv: false,
+            bars: false,
+            percent: false,
+            stats: false,
+            grep: None,
+            asc: false,
+            since: None,
+            until: None,
+            trend: false,
+            trend_bucket: None,
+            output: None,
+            completions: None,
+            man: false,
+        }
+    }
+}
+
+fn need_value(iter: &mut impl Iterator<Item = String>, flag: &str) -> String {
+    iter.next().unwrap_or_else(|| {
+        eprintln!("shellist: {flag} requires a value");
+        process::exit(1);
+    })
+}
+
+fn parse_usize(val: String, flag: &str) -> usize {
+    val.parse().unwrap_or_else(|_| {
+        eprintln!("shellist: {flag} expects a number, got '{val}'");
+        process::exit(1);
+    })
 }
 
 fn parse_args() -> Args {
-    let mut args = Args {
-        top: None,
-        ignore: Vec::new(),
-        no_default_ignore: false,
-        min_freq: None,
-        path: None,
-    };
-
+    let mut args = Args::empty();
     let mut iter = env::args().skip(1);
+
     while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "-" => args.path = Some("-".to_string()),
             "--help" => {
                 print_help();
                 process::exit(0);
             }
-            "--top" => {
-                let val = iter.next().unwrap_or_else(|| {
-                    eprintln!("shellist: --top requires a number");
-                    process::exit(1);
-                });
-                args.top = Some(val.parse().unwrap_or_else(|_| {
-                    eprintln!("shellist: --top expects a number, got '{val}'");
-                    process::exit(1);
-                }));
+            "--top" => args.top = Some(parse_usize(need_value(&mut iter, "--top"), "--top")),
+            "--min" => args.min_freq = Some(parse_usize(need_value(&mut iter, "--min"), "--min")),
+            "--depth" => {
+                args.depth = Some(parse_usize(need_value(&mut iter, "--depth"), "--depth"))
             }
             "--ignore" => {
-                let val = iter.next().unwrap_or_else(|| {
-                    eprintln!("shellist: --ignore requires a comma-separated list");
-                    process::exit(1);
-                });
-                args.ignore = val.split(',').map(|s| s.trim().to_string()).collect();
+                let val = need_value(&mut iter, "--ignore");
+                args.ignore = val.split(',').map(|s| s.trim().to_lowercase()).collect();
             }
-            "--no-default-ignore" => {
-                args.no_default_ignore = true;
+            "--no-default-ignore" => args.no_default_ignore = true,
+            "--path" => args.path = Some(need_value(&mut iter, "--path")),
+            "--shell" => {
+                let val = need_value(&mut iter, "--shell");
+                args.shell = Some(parse_shell(&val, "--shell"));
             }
-            "--min" => {
-                let val = iter.next().unwrap_or_else(|| {
-                    eprintln!("shellist: --min requires a number");
-                    process::exit(1);
-                });
-                args.min_freq = Some(val.parse().unwrap_or_else(|_| {
-                    eprintln!("shellist: --min expects a number, got '{val}'");
-                    process::exit(1);
-                }));
+            "--json" => args.json = true,
+            "--csv" => args.csv = true,
+            "--bars" => args.bars = true,
+            "--percent" => args.percent = true,
+            "--stats" => args.stats = true,
+            "--grep" => args.grep = Some(need_value(&mut iter, "--grep")),
+            "--asc" => args.asc = true,
+            "--since" => args.since = Some(need_value(&mut iter, "--since")),
+            "--until" => args.until = Some(need_value(&mut iter, "--until")),
+            "--trend" => args.trend = true,
+            "--trend-bucket" => {
+                let val = need_value(&mut iter, "--trend-bucket");
+                args.trend_bucket = Some(parse_bucket(&val));
             }
-            "--path" => {
-                let val = iter.next().unwrap_or_else(|| {
-                    eprintln!("shellist: --path requires a file path");
-                    process::exit(1);
-                });
-                args.path = Some(val);
+            "--output" => args.output = Some(need_value(&mut iter, "--output")),
+            "--completions" => {
+                let val = need_value(&mut iter, "--completions");
+                args.completions = Some(parse_shell(&val, "--completions"));
             }
+            "--man" => args.man = true,
             other => {
                 eprintln!("shellist: unknown flag '{other}'");
                 process::exit(1);
@@ -101,95 +151,142 @@ fn parse_args() -> Args {
     args
 }
 
+fn parse_shell(val: &str, flag: &str) -> Shell {
+    Shell::from_name(val).unwrap_or_else(|| {
+        eprintln!("shellist: {flag} expects bash, zsh, or fish, got '{val}'");
+        process::exit(1);
+    })
+}
+
+fn parse_bucket(val: &str) -> Bucket {
+    Bucket::from_name(val).unwrap_or_else(|| {
+        eprintln!("shellist: --trend-bucket expects day, week, or month, got '{val}'");
+        process::exit(1);
+    })
+}
+
 fn print_help() {
-    eprintln!(
-        "shellist — shell history analysis
+    println!(
+        "shellist {version} — shell history analysis
 
 USAGE:
     shellist [OPTIONS]
 
-OPTIONS:
-    --top N            Show only the top N commands
-    --ignore X,Y       Exclude commands (comma-separated)
-    --no-default-ignore Disable built-in ignore list ({})
-    --min N            Only commands used at least N times
-    --path PATH        Read from PATH instead of ~/.bash_history
-    --help             Print this help",
-        DEFAULT_IGNORE.join(", ")
+INPUT:
+    --path PATH          Read history from PATH (default: per-shell file)
+    --shell bash|zsh|fish  Force a parser (default: auto-detect)
+    -                    Read history from stdin (or pipe in)
+
+FILTERING:
+    --top N              Show only the top N commands
+    --ignore X,Y         Exclude commands (comma-separated)
+    --no-default-ignore  Don't filter bash internals ({ignores})
+    --min N              Only commands used at least N times
+    --grep PATTERN       Keep commands matching a regex
+    --depth N            Treat first N tokens as the command key (default 1)
+    --since DATE         Only on/after DATE (YYYY-MM-DD, needs timestamps)
+    --until DATE         Only on/before DATE (YYYY-MM-DD, needs timestamps)
+    --asc                Sort ascending
+
+OUTPUT:
+    --bars               Add an ASCII bar chart column
+    --percent            Add a percentage column
+    --json               Output as JSON
+    --csv                Output as CSV
+    --stats              Print summary statistics
+    --trend              Usage bucketed over time (needs timestamps)
+    --trend-bucket day|week|month  Bucket for --trend (default: day)
+    --output FILE        Write output to FILE instead of stdout
+
+INTEGRATION:
+    --completions bash|zsh|fish  Print a completion script
+    --man                Print the man page
+    --help               Print this help",
+        version = env!("CARGO_PKG_VERSION"),
+        ignores = DEFAULT_IGNORE.join(", ")
     );
-}
-
-fn print_table(commands: &[(String, usize)]) {
-    if commands.is_empty() {
-        return;
-    }
-
-    let rank_width = commands.len().to_string().len().max(4);
-    let cmd_width = commands
-        .iter()
-        .map(|(c, _)| c.len())
-        .max()
-        .unwrap_or(7)
-        .max(7);
-    let count_width = commands
-        .iter()
-        .map(|(_, n)| n.to_string().len())
-        .max()
-        .unwrap_or(5)
-        .max(5);
-
-    println!(
-        "{:>rw$}  {:<cw$}  {:>nw$}",
-        "Rank",
-        "Command",
-        "Count",
-        rw = rank_width,
-        cw = cmd_width,
-        nw = count_width
-    );
-    println!(
-        "{:-<rw$}  {:-<cw$}  {:-<nw$}",
-        "",
-        "",
-        "",
-        rw = rank_width,
-        cw = cmd_width,
-        nw = count_width
-    );
-
-    for (i, (cmd, count)) in commands.iter().enumerate() {
-        println!(
-            "{:>rw$}  {:<cw$}  {:>nw$}",
-            i + 1,
-            cmd,
-            count,
-            rw = rank_width,
-            cw = cmd_width,
-            nw = count_width
-        );
-    }
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let args = parse_args();
+    let mut args = parse_args();
 
-    let content = if let Some(ref path) = args.path {
-        load_history_file(path)?
-    } else {
-        let path = default_history_path();
-        load_history_file(path.to_str().unwrap())?
+    if args.man {
+        print!("{}", man_page());
+        return Ok(());
+    }
+    if let Some(shell) = args.completions {
+        print!("{}", completions(shell));
+        return Ok(());
+    }
+
+    let grep_re = match args.grep.as_deref() {
+        Some(p) => Some(Regex::new(p).map_err(|e| format!("invalid --grep pattern: {e}"))?),
+        None => None,
+    };
+    let since = match args.since.as_deref() {
+        Some(d) => Some(
+            parse_date_to_unix(d)
+                .ok_or_else(|| format!("invalid --since date '{d}' (use YYYY-MM-DD)"))?,
+        ),
+        None => None,
+    };
+    let until = match args.until.as_deref() {
+        Some(d) => Some(
+            parse_date_to_unix(d)
+                .ok_or_else(|| format!("invalid --until date '{d}' (use YYYY-MM-DD)"))?,
+        ),
+        None => None,
     };
 
-    let mut ranked = analyze(&content);
+    let content = read_input(&args)?;
+    let shell = args.shell.unwrap_or_else(|| detect_shell(&content));
+    let mut entries = match shell {
+        Shell::Bash => shellist::DefaultHistoryParser::new().parse(&content),
+        Shell::Zsh => shellist::ZshHistoryParser::new().parse(&content),
+        Shell::Fish => shellist::FishHistoryParser::new().parse(&content),
+    };
+
+    if since.is_some() || until.is_some() {
+        entries.retain(|e| match e.timestamp {
+            Some(t) => since.is_none_or(|s| t as i64 >= s) && until.is_none_or(|u| t as i64 <= u),
+            None => false,
+        });
+    }
+
+    if args.trend {
+        let bucket = args.trend_bucket.unwrap_or(Bucket::Day);
+        let out = format_trend(&entries, bucket);
+        if out.is_empty() {
+            eprintln!(
+                "shellist: no timestamped entries for --trend \
+                 (need zsh extended, fish, or timestamped history)"
+            );
+        } else {
+            write_output(&out, &args.output)?;
+        }
+        return Ok(());
+    }
+
+    let depth = args.depth.unwrap_or(1);
+    let counts = count_commands_at_depth(&entries, depth);
+    let mut ranked = if args.asc {
+        rank_commands_ascending(counts)
+    } else {
+        rank_commands(counts)
+    };
+
+    if let Some(re) = grep_re {
+        ranked = grep_filter(&ranked, &re);
+    }
 
     let ignore: Vec<String> = if args.no_default_ignore {
-        args.ignore
+        std::mem::take(&mut args.ignore)
     } else {
         let mut merged = DEFAULT_IGNORE
             .iter()
-            .map(|&s| s.to_string())
+            .map(|s| (*s).to_string())
             .collect::<Vec<_>>();
-        merged.extend(args.ignore);
+        merged.extend(std::mem::take(&mut args.ignore));
         merged
     };
     if !ignore.is_empty() {
@@ -202,22 +299,75 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         ranked = top_n(ranked, n);
     }
 
-    if ranked.is_empty() {
-        let path_display = args
-            .path
-            .clone()
-            .unwrap_or_else(|| default_history_path().to_string_lossy().into_owned());
-        if content.trim().is_empty() {
-            eprintln!("shellist: no history found in {path_display}");
-        } else {
-            eprintln!(
-                "shellist: all commands were filtered out (default ignores: {}). \
-                 Use --no-default-ignore to show everything.",
-                DEFAULT_IGNORE.join(", ")
-            );
-        }
+    let (output, was_empty_table) = if args.json {
+        (format_json(&ranked), false)
+    } else if args.csv {
+        (format_csv(&ranked), false)
+    } else if args.stats {
+        (format_stats(&ranked), false)
+    } else if ranked.is_empty() {
+        (String::new(), true)
     } else {
-        print_table(&ranked);
+        let opts = TableOptions {
+            percent: args.percent,
+            bars: args.bars,
+        };
+        (format_table(&ranked, &opts), false)
+    };
+
+    if was_empty_table {
+        let source = source_label(&args);
+        eprintln!("shellist: no commands to show from {source}");
+    } else {
+        write_output(&output, &args.output)?;
+    }
+
+    Ok(())
+}
+
+fn read_input(args: &Args) -> Result<String, Box<dyn std::error::Error>> {
+    if let Some(path) = &args.path {
+        if path == "-" {
+            return read_stdin();
+        }
+        return load_history_file(path).map_err(Into::into);
+    }
+    if !std::io::stdin().is_terminal() {
+        return read_stdin();
+    }
+    let path = match args.shell {
+        Some(shell) => shell.default_history_path(),
+        None => default_history_path(),
+    };
+    load_history_file(path.to_str().unwrap()).map_err(Into::into)
+}
+
+fn read_stdin() -> Result<String, Box<dyn std::error::Error>> {
+    let mut buf = String::new();
+    std::io::stdin().read_to_string(&mut buf)?;
+    Ok(buf)
+}
+
+fn source_label(args: &Args) -> String {
+    if let Some(p) = &args.path {
+        if p == "-" {
+            return "stdin".to_string();
+        }
+        return p.clone();
+    }
+    if !std::io::stdin().is_terminal() {
+        return "stdin".to_string();
+    }
+    match args.shell {
+        Some(shell) => shell.default_history_path().to_string_lossy().into_owned(),
+        None => default_history_path().to_string_lossy().into_owned(),
+    }
+}
+
+fn write_output(content: &str, output: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    match output {
+        Some(path) => std::fs::write(path, content)?,
+        None => print!("{content}"),
     }
     Ok(())
 }

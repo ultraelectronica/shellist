@@ -106,3 +106,75 @@
   3. cd     80
   ```
 - [X] Depend on `shellist` library via path
+
+---
+
+## Phase 11: Multi-Shell Support
+
+**Goal:** Support history formats beyond bash.
+
+- [X] Zsh history parser (`: timestamp:0;command` format)
+- [X] Fish history parser (`~/.local/share/fish/fish_history`, YAML-like)
+- [X] Auto-detect shell format from file contents
+- [X] `--shell bash|zsh|fish` flag to force a specific parser
+- [X] Default path per shell (`~/.zsh_history`, fish data dir)
+
+---
+
+## Phase 12: Subcommand Depth
+
+**Goal:** Rank multi-word commands like `git commit` separately.
+
+- [X] `--depth N` flag (default 1, current behavior)
+- [X] Extract first N tokens as the command key
+- [X] Update `HistoryEntry` or counting logic to support variable depth
+
+---
+
+## Phase 13: Output Formats
+
+**Goal:** Machine-readable and visual output modes.
+
+- [X] `--json` — output as JSON array
+- [X] `--csv` — output as CSV
+- [X] ASCII bar chart mode (`--bars`)
+- [X] Percentage column (`--percent`) showing each command's share of total
+
+---
+
+## Phase 14: Summary Statistics
+
+**Goal:** Quick overview of history.
+
+- [X] `--stats` flag printing total lines, unique commands, most/least used
+- [X] Average commands per unique command
+
+---
+
+## Phase 15: Filtering & Search
+
+**Goal:** More powerful filtering options.
+
+- [X] `--grep PATTERN` — regex filter on command names
+- [X] `--asc` — ascending sort order
+- [X] Stdin support (`shellist -` or pipe detection) for reading history from stdin
+
+---
+
+## Phase 16: Time-Aware Analysis
+
+**Goal:** Leverage timestamps when available (zsh extended history, HISTTIMEFORMAT).
+
+- [X] Parse timestamps from zsh/extended bash history
+- [X] `--since DATE` / `--until DATE` — date range filtering
+- [X] `--trend` — show usage bucketed by day/week/month
+
+---
+
+## Phase 17: Export & Integration
+
+**Goal:** Play well with other tools.
+
+- [X] `--output FILE` — write results to a file instead of stdout
+- [X] Shell completions generation (bash, zsh, fish)
+- [X] Man page generation
