@@ -1,8 +1,8 @@
 [package]
 name = "shellist"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
-description = "Shell history analysis. Parses .bash_history, counts commands, and ranks by frequency."
+description = "Shell history analysis. Parses bash, zsh, and fish history, counts commands, and ranks by frequency."
 license = "MIT"
 repository = "https://github.com/ultraelectronica/shellist"
 documentation = "https://docs.rs/shellist"
@@ -14,6 +14,7 @@ name = "shellist"
 path = "src/main.rs"
 
 [dependencies]
+regex = "1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
