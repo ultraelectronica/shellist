@@ -1,6 +1,6 @@
 # Shellist
 
-Parse `.bash_history`, count commands, rank by frequency. Library and CLI.
+Parse shell history (bash, zsh, fish), count commands, and rank them by frequency. Library and CLI.
 
 ## Install
 
@@ -13,33 +13,79 @@ cargo install shellist
 ```sh
 shellist                      # reads ~/.bash_history, prints ranked table
 shellist --top 5              # top 5 only
-shellist --ignore ls,cd       # exclude ls and cd
-shellist --no-default-ignore  # include bash internals (set, shopt)
-shellist --min 3              # only commands used ≥ 3 times
-shellist --path ./my_history.txt
+shellist --shell zsh          # force the zsh parser
+shellist --depth 2            # rank multi-word commands (git commit, git push, ...)
+shellist --bars --percent     # add a bar chart and percentage column
+shellist --json               # machine-readable output
+shellist --grep '^git'        # regex filter on command names
+shellist --since 2024-01-01   # date range (needs timestamps)
+shellist --trend --trend-bucket month  # usage over time
+cat ~/.zsh_history | shellist # read from stdin
 ```
 
-Options:
+### Input
 
-| Flag              | Description                          |
-|-------------------|--------------------------------------|
-| `--top N`         | Show top N commands                  |
-| `--ignore X,Y`    | Exclude commands (comma-separated)   |
-| `--no-default-ignore` | Don't filter bash internals (set, shopt) |
-| `--min N`         | Only commands with count ≥ N         |
-| `--path PATH`     | Read from PATH (default: ~/.bash_history) |
-| `--help`          | Print help                          |
+| Flag                          | Description                                              |
+|-------------------------------|----------------------------------------------------------|
+| `--path PATH`                 | Read history from PATH instead of the default file      |
+| `--shell bash\|zsh\|fish`     | Force a parser (default: auto-detect from contents)     |
+| `-`                           | Read from stdin (or just pipe history in)               |
+
+By default `shellist` reads `~/.bash_history`. With `--shell zsh`/`fish` it uses
+`~/.zsh_history` / `$XDG_DATA_HOME/fish/fish_history`. Otherwise the format is
+auto-detected from the file contents.
+
+### Filtering
+
+| Flag                   | Description                                              |
+|------------------------|----------------------------------------------------------|
+| `--top N`              | Show only the top N commands                             |
+| `--ignore X,Y`         | Exclude commands (comma-separated)                       |
+| `--no-default-ignore`  | Don't filter bash internals (set, shopt)                 |
+| `--min N`              | Only commands used at least N times                      |
+| `--grep PATTERN`       | Keep commands matching a regex                           |
+| `--depth N`            | Treat the first N tokens as the command key (default 1)  |
+| `--since DATE`         | Only on/after DATE (`YYYY-MM-DD`, needs timestamps)      |
+| `--until DATE`         | Only on/before DATE (`YYYY-MM-DD`, needs timestamps)     |
+| `--asc`                | Sort ascending                                           |
 
 By default, `set` and `shopt` are ignored — these are bash internals that often leak into `.bash_history` from shell init scripts, not commands you actually typed. Use `--no-default-ignore` to see them.
+
+### Output
+
+| Flag                            | Description                                     |
+|---------------------------------|-------------------------------------------------|
+| `--bars`                        | Add an ASCII bar chart column                   |
+| `--percent`                     | Add a percentage column                         |
+| `--json`                        | Output as a JSON array                          |
+| `--csv`                         | Output as CSV                                   |
+| `--stats`                       | Print summary statistics                        |
+| `--trend`                       | Show usage bucketed over time (needs timestamps)|
+| `--trend-bucket day\|week\|month` | Bucket granularity for `--trend` (default day)|
+| `--output FILE`                 | Write output to FILE instead of stdout          |
+
+### Integration
+
+| Flag                            | Description                                     |
+|---------------------------------|-------------------------------------------------|
+| `--completions bash\|zsh\|fish` | Print a shell completion script                 |
+| `--man`                         | Print the man page                              |
+| `--help`                        | Print help                                      |
+
+Install completions, for example for bash:
+
+```sh
+shellist --completions bash > /etc/bash_completion.d/shellist
+```
 
 Example output:
 
 ```
-Rank  Command  Count
-----  -------  -----
-   1  ls          120
-   2  git          95
-   3  cd           80
+Rank  Command  Count    Pct  Bars
+----  -------  -----  -----  ------------------------------
+   1  ls          120  40.0%  ##############################
+   2  git          95  31.7%  #######################
+   3  cd           80  26.7%  ####################
 ```
 
 ## Library
@@ -66,6 +112,18 @@ let filtered = filter_commands(top, &["cd"]);
 
 // From file
 let content = load_history_file("/home/user/.bash_history")?;
+```
+
+### Multi-shell parsing
+
+```rust
+use shellist::{ZshHistoryParser, FishHistoryParser, HistoryParser, detect_shell};
+
+let zsh_entries = ZshHistoryParser::new().parse(": 1577836800:0;git push\n");
+assert_eq!(zsh_entries[0].timestamp, Some(1577836800));
+
+let fish_entries = FishHistoryParser::new().parse("- cmd: ls\n  when: 1577836800\n");
+let shell = detect_shell("- cmd: ls\n");
 ```
 
 ## Benchmarks
