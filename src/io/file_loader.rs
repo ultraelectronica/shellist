@@ -20,13 +20,12 @@ pub fn load_history_file(path: &str) -> io::Result<String> {
 /// assert_eq!(path.file_name().unwrap(), ".bash_history");
 /// ```
 pub fn default_history_path() -> PathBuf {
-    dirs_or_home().join(".bash_history")
+    crate::shell::Shell::Bash.default_history_path()
 }
 
-fn dirs_or_home() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("HOME environment variable not set")
+/// Resolve the default history path for a given shell.
+pub fn default_history_path_for(shell: crate::shell::Shell) -> PathBuf {
+    shell.default_history_path()
 }
 
 #[cfg(test)]
