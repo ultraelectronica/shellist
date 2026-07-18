@@ -43,4 +43,11 @@ mod tests {
         let re = Regex::new("git").unwrap();
         assert_eq!(grep_filter(&ranked(), &re).len(), 2);
     }
+
+    #[test]
+    fn case_insensitive_when_built_with_flag() {
+        let ranked = vec![("Git".to_string(), 5), ("GIT".to_string(), 2)];
+        let re = Regex::new("(?i)^git$").unwrap();
+        assert_eq!(grep_filter(&ranked, &re).len(), 2);
+    }
 }
