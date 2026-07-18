@@ -4,6 +4,9 @@ use crate::parsers::HistoryParser;
 /// Default parser for bash history files.
 ///
 /// Strips whitespace, skips empty lines, grabs the first token as the command.
+/// Lines starting with `#<digits>` are treated as timestamps
+/// (bash `HISTTIMEFORMAT`) and attached to the following command line.
+///
 /// ```rust
 /// use shellist::{DefaultHistoryParser, HistoryParser};
 /// let entries = DefaultHistoryParser::new().parse("ls -la\n\n  git push  ");
@@ -23,15 +26,28 @@ impl DefaultHistoryParser {
 
 impl HistoryParser for DefaultHistoryParser {
     fn parse(&self, input: &str) -> Vec<HistoryEntry> {
-        input
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                let command = line.split_whitespace().next().unwrap_or("").to_string();
-                HistoryEntry::new(line, command)
-            })
-            .collect()
+        let mut entries = Vec::new();
+        let mut pending_ts: Option<u64> = None;
+        for line in input.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Some(rest) = trimmed.strip_prefix('#')
+                && rest.chars().all(|c| c.is_ascii_digit())
+                && !rest.is_empty()
+            {
+                pending_ts = rest.parse().ok();
+                continue;
+            }
+            let command = trimmed.split_whitespace().next().unwrap_or("").to_string();
+            let mut entry = HistoryEntry::new(trimmed, command);
+            if let Some(ts) = pending_ts.take() {
+                entry.timestamp = Some(ts);
+            }
+            entries.push(entry);
+        }
+        entries
     }
 }
 
@@ -97,5 +113,44 @@ mod tests {
         let entries = parse_history("echo hello");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].command, "echo");
+    }
+
+    #[test]
+    fn parses_bash_timestamp_prefix() {
+        let input = "#1577836800\nls\n#1577836801\ngit status\n";
+        let entries = DefaultHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].timestamp, Some(1577836800));
+        assert_eq!(entries[0].command, "ls");
+        assert_eq!(entries[1].timestamp, Some(1577836801));
+        assert_eq!(entries[1].command, "git");
+    }
+
+    #[test]
+    fn bash_timestamp_mixed_with_plain() {
+        let input = "ls\n#1577836800\ncd ..\n";
+        let entries = DefaultHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].timestamp, None);
+        assert_eq!(entries[0].command, "ls");
+        assert_eq!(entries[1].timestamp, Some(1577836800));
+        assert_eq!(entries[1].command, "cd");
+    }
+
+    #[test]
+    fn bash_consecutive_timestamps_use_last() {
+        let input = "#1\n#2\nls\n";
+        let entries = DefaultHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].timestamp, Some(2));
+    }
+
+    #[test]
+    fn bash_hash_not_digits_is_plain() {
+        let input = "# comment\nls\n";
+        let entries = DefaultHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].command, "#");
+        assert_eq!(entries[1].command, "ls");
     }
 }
