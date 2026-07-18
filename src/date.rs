@@ -60,10 +60,15 @@ pub fn parse_date_to_unix(s: &str) -> Option<i64> {
     if parts.next().is_some() {
         return None;
     }
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+    if !(1..=12).contains(&m) {
         return None;
     }
-    Some(days_from_civil(y, m, d) * 86_400)
+    let days = days_from_civil(y, m, d);
+    let (yr, mo, dy) = civil_from_days(days);
+    if (yr, mo, dy) != (y, m, d) {
+        return None;
+    }
+    Some(days * 86_400)
 }
 
 /// A sortable, human-readable bucket key for a Unix timestamp.
@@ -126,6 +131,9 @@ mod tests {
         assert_eq!(parse_date_to_unix("not-a-date"), None);
         assert_eq!(parse_date_to_unix("2020-13-01"), None);
         assert_eq!(parse_date_to_unix("2020-00-40"), None);
+        assert_eq!(parse_date_to_unix("2020-02-30"), None);
+        assert_eq!(parse_date_to_unix("2023-04-31"), None);
+        assert_eq!(parse_date_to_unix("2023-02-29"), None);
         assert_eq!(
             parse_date_to_unix("2020-1-1"),
             Some(days_from_civil(2020, 1, 1) * 86400)
@@ -144,10 +152,8 @@ mod tests {
 
     #[test]
     fn bucket_week_aligns_to_monday() {
-        // 2020-01-03 was a Friday; its week starts Monday 2020-01-01 (which itself is... a Wednesday).
-        // Verify the returned key is a Monday by checking rem_euclid consistency.
-        let key = bucket_key(1_577_923_200, Bucket::Week); // 2020-01-02
-        // The week key for any day in early Jan 2020 should be 2019-12-30 (the Monday).
+        let key = bucket_key(1_577_923_200, Bucket::Week); // 2020-01-02 (Thursday)
+        // ISO week 1 of 2020 starts Monday 2019-12-30.
         assert_eq!(key, "2019-12-30");
     }
 
