@@ -1,27 +1,27 @@
 //! Shell completion script generation (bash, zsh, fish).
 //!
-//! The flags list is kept in sync with the CLI in `main.rs`.
+//! The `FLAGS` list must be updated whenever new CLI flags are added to `main.rs`.
 
 use crate::shell::Shell;
 
 /// All flags the CLI accepts, for embedding in completion scripts.
 const FLAGS: &[&str] = &[
+    "--path",
+    "--shell",
     "--top",
     "--ignore",
     "--no-default-ignore",
     "--min",
-    "--path",
-    "--shell",
-    "--depth",
-    "--json",
-    "--csv",
-    "--bars",
-    "--percent",
-    "--stats",
     "--grep",
-    "--asc",
+    "--depth",
     "--since",
     "--until",
+    "--asc",
+    "--bars",
+    "--percent",
+    "--json",
+    "--csv",
+    "--stats",
     "--trend",
     "--trend-bucket",
     "--output",
@@ -85,7 +85,7 @@ _shellist() {
     opts=(
         '--top[Show top N commands]:N:'
         '--ignore[Exclude commands (comma-separated)]:list:'
-        '--no-default-ignore[Include bash internals (set, shopt)]'
+        '--no-default-ignore[Do not filter bash internals (set, shopt)]'
         '--min[Only commands with count >= N]:N:'
         '--path[History file path]:file:_files'
         '--shell[Force shell parser]:shell:(bash zsh fish)'
@@ -138,7 +138,7 @@ fn description(flag: &str) -> &'static str {
     match flag {
         "--top" => "Show top N commands",
         "--ignore" => "Exclude commands (comma-separated)",
-        "--no-default-ignore" => "Include bash internals (set, shopt)",
+        "--no-default-ignore" => "Do not filter bash internals (set, shopt)",
         "--min" => "Only commands with count >= N",
         "--path" => "History file path",
         "--shell" => "Force shell parser",
