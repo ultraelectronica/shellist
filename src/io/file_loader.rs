@@ -1,31 +1,26 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Read a history file and return its contents.
 ///
 /// ```rust,no_run
 /// let content = shellist::load_history_file("/home/user/.bash_history").unwrap();
 /// ```
-pub fn load_history_file(path: &str) -> io::Result<String> {
+pub fn load_history_file(path: impl AsRef<Path>) -> io::Result<String> {
     std::fs::read_to_string(path)
 }
 
 /// Resolve the default history file path (`~/.bash_history`).
 ///
-/// Uses the `HOME` environment variable.
+/// Uses the `HOME` environment variable. Returns `None` if HOME is not set.
 ///
 /// ```rust
-/// let path = shellist::default_history_path();
+/// let path = shellist::default_history_path().unwrap();
 /// assert!(path.is_absolute());
 /// assert_eq!(path.file_name().unwrap(), ".bash_history");
 /// ```
-pub fn default_history_path() -> PathBuf {
+pub fn default_history_path() -> Option<PathBuf> {
     crate::shell::Shell::Bash.default_history_path()
-}
-
-/// Resolve the default history path for a given shell.
-pub fn default_history_path_for(shell: crate::shell::Shell) -> PathBuf {
-    shell.default_history_path()
 }
 
 #[cfg(test)]
@@ -50,13 +45,13 @@ mod tests {
 
     #[test]
     fn default_path_ends_with_bash_history() {
-        let path = default_history_path();
+        let path = default_history_path().unwrap();
         assert_eq!(path.file_name().unwrap(), ".bash_history");
     }
 
     #[test]
     fn default_path_is_absolute() {
-        let path = default_history_path();
+        let path = default_history_path().unwrap();
         assert!(path.is_absolute());
     }
 }
