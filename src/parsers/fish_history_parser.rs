@@ -37,14 +37,10 @@ impl HistoryParser for FishHistoryParser {
 
         for line in input.lines() {
             let trimmed = line.trim();
-            if let Some(rest) = trimmed.strip_prefix("- cmd:") {
-                flush(&mut entries, current_cmd.take(), current_ts.take());
-                let cmd = rest.trim().to_string();
-                if !cmd.is_empty() {
-                    current_cmd = Some(cmd);
-                }
-            } else if let Some(rest) = trimmed.strip_prefix("cmd:") {
-                // Bare "cmd:" without leading dash — also accept.
+            if let Some(rest) = trimmed
+                .strip_prefix("- cmd:")
+                .or_else(|| trimmed.strip_prefix("cmd:"))
+            {
                 flush(&mut entries, current_cmd.take(), current_ts.take());
                 let cmd = rest.trim().to_string();
                 if !cmd.is_empty() {
@@ -63,11 +59,34 @@ impl HistoryParser for FishHistoryParser {
 
 fn flush(entries: &mut Vec<HistoryEntry>, cmd: Option<String>, ts: Option<u64>) {
     if let Some(cmd) = cmd {
+        let cmd = unescape_fish(&cmd);
         let command = cmd.split_whitespace().next().unwrap_or("").to_string();
         let mut entry = HistoryEntry::new(cmd, command);
         entry.timestamp = ts;
         entries.push(entry);
     }
+}
+
+/// Unescape fish-history `cmd:` escapes: `\\` → `\`, `\n` → newline.
+fn unescape_fish(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('\\') => out.push('\\'),
+                Some('n') => out.push('\n'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -131,5 +150,27 @@ mod tests {
         let entries = FishHistoryParser::new().parse(input);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].timestamp, Some(5));
+    }
+
+    #[test]
+    fn unescapes_embedded_newline() {
+        // A `cmd:` value beginning with `\n` (escaped newline) followed by `mv`
+        // should be treated as a newline + mv, so the command token is `mv` after
+        // split_whitespace() splits on the real newline.
+        let input = "- cmd: \\nmv ~/.config/nvim ~/.config/nvim.bak\\nmv ~/.local/share/nvim ~/.local/share/nvim.bak\n  when: 1\n";
+        let entries = FishHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].command, "mv");
+        assert!(entries[0].raw.contains("\nmv"));
+    }
+
+    #[test]
+    fn unescapes_escaped_backslash() {
+        let input = "- cmd: echo pa\\\\th\n  when: 1\n";
+        let entries = FishHistoryParser::new().parse(input);
+        assert_eq!(entries.len(), 1);
+        // Two backslashes in input → one backslash in output.
+        assert_eq!(entries[0].raw, "echo pa\\th");
+        assert_eq!(entries[0].command, "echo");
     }
 }
