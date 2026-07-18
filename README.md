@@ -43,7 +43,7 @@ auto-detected from the file contents.
 | `--ignore X,Y`         | Exclude commands (comma-separated)                       |
 | `--no-default-ignore`  | Don't filter bash internals (set, shopt)                 |
 | `--min N`              | Only commands used at least N times                      |
-| `--grep PATTERN`       | Keep commands matching a regex                           |
+| `--grep PATTERN`       | Keep commands matching a regex (case-insensitive)       |
 | `--depth N`            | Treat the first N tokens as the command key (default 1)  |
 | `--since DATE`         | Only on/after DATE (`YYYY-MM-DD`, needs timestamps)      |
 | `--until DATE`         | Only on/before DATE (`YYYY-MM-DD`, needs timestamps)     |
@@ -60,8 +60,8 @@ By default, `set` and `shopt` are ignored — these are bash internals that ofte
 | `--json`                        | Output as a JSON array                          |
 | `--csv`                         | Output as CSV                                   |
 | `--stats`                       | Print summary statistics                        |
-| `--trend`                       | Show usage bucketed over time (needs timestamps)|
-| `--trend-bucket day\|week\|month` | Bucket granularity for `--trend` (default day)|
+| `--trend`                       | Show usage bucketed over time (UTC, needs timestamps)|
+| `--trend-bucket day\|week\|month` | Bucket granularity for `--trend` (default day). Also `daily`,`weekly`,`monthly`|
 | `--output FILE`                 | Write output to FILE instead of stdout          |
 
 ### Integration

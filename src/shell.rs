@@ -35,9 +35,9 @@ impl Shell {
     /// - Bash: `~/.bash_history`
     /// - Zsh: `~/.zsh_history`
     /// - Fish: `$XDG_DATA_HOME/fish/fish_history` (default `~/.local/share/fish/fish_history`)
-    pub fn default_history_path(self) -> PathBuf {
-        let home = home_dir();
-        match self {
+    pub fn default_history_path(self) -> Option<PathBuf> {
+        let home = home_dir()?;
+        Some(match self {
             Shell::Bash => home.join(".bash_history"),
             Shell::Zsh => home.join(".zsh_history"),
             Shell::Fish => {
@@ -50,14 +50,12 @@ impl Shell {
                         .join("fish_history")
                 }
             }
-        }
+        })
     }
 }
 
-fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("HOME environment variable not set")
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
 }
 
 /// Detect the shell format from history file contents.
@@ -82,17 +80,8 @@ pub fn detect_shell(input: &str) -> Shell {
     Shell::Bash
 }
 
-/// True if a line matches the zsh extended-history prefix `: <epoch>:<elapsed>;<cmd>`.
 fn looks_like_zsh_extended(line: &str) -> bool {
-    let Some(rest) = line.strip_prefix(':') else {
-        return false;
-    };
-    let rest = rest.trim_start();
-    let digit_end = rest.chars().take_while(|c| c.is_ascii_digit()).count();
-    if digit_end == 0 {
-        return false;
-    }
-    rest[digit_end..].starts_with(':')
+    crate::parsers::zsh_history_parser::parse_zsh_extended(line).is_some()
 }
 
 #[cfg(test)]
@@ -116,19 +105,19 @@ mod tests {
 
     #[test]
     fn bash_default_path() {
-        let path = Shell::Bash.default_history_path();
+        let path = Shell::Bash.default_history_path().unwrap();
         assert_eq!(path.file_name().unwrap(), ".bash_history");
     }
 
     #[test]
     fn zsh_default_path() {
-        let path = Shell::Zsh.default_history_path();
+        let path = Shell::Zsh.default_history_path().unwrap();
         assert_eq!(path.file_name().unwrap(), ".zsh_history");
     }
 
     #[test]
     fn fish_default_path() {
-        let path = Shell::Fish.default_history_path();
+        let path = Shell::Fish.default_history_path().unwrap();
         assert_eq!(path.file_name().unwrap(), "fish_history");
     }
 

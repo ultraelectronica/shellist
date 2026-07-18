@@ -1,4 +1,4 @@
-use super::{Align, render_table};
+use super::{Align, bar_len, render_table};
 
 /// Toggles for optional table columns.
 #[derive(Default, Clone, Copy)]
@@ -24,7 +24,6 @@ pub fn format_table(ranked: &[(String, usize)], opts: &TableOptions) -> String {
     }
     let total: usize = ranked.iter().map(|(_, c)| *c).sum();
     let max_count = ranked.iter().map(|(_, c)| *c).max().unwrap_or(1);
-    const BAR_MAX: usize = 30;
 
     let mut headers = vec![
         "Rank".to_string(),
@@ -53,12 +52,7 @@ pub fn format_table(ranked: &[(String, usize)], opts: &TableOptions) -> String {
             row.push(format!("{pct:.1}%"));
         }
         if opts.bars {
-            let bar_len = if max_count == 0 {
-                0
-            } else {
-                ((*count as f64 * BAR_MAX as f64) / max_count as f64).round() as usize
-            };
-            row.push("#".repeat(bar_len));
+            row.push("#".repeat(bar_len(*count, max_count)));
         }
         rows.push(row);
     }

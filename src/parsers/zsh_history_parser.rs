@@ -54,7 +54,7 @@ impl HistoryParser for ZshHistoryParser {
 }
 
 /// Parse a `: <epoch>:<elapsed>;<command>` line into (command_line, timestamp).
-fn parse_zsh_extended(line: &str) -> Option<(String, u64)> {
+pub(crate) fn parse_zsh_extended(line: &str) -> Option<(String, u64)> {
     let rest = line.strip_prefix(':')?;
     let rest = rest.trim_start();
     let digit_end = rest

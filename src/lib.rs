@@ -27,7 +27,7 @@ pub use aggregators::{
 };
 pub use completions::completions;
 pub use date::{Bucket, bucket_key, civil_from_days, days_from_civil, parse_date_to_unix};
-pub use io::{default_history_path, default_history_path_for, load_history_file};
+pub use io::{default_history_path, load_history_file};
 pub use man::man_page;
 pub use models::HistoryEntry;
 pub use output::{
@@ -37,6 +37,9 @@ pub use output::{
 pub use parsers::{
     DefaultHistoryParser, FishHistoryParser, HistoryParser, ZshHistoryParser, parse_history,
 };
+
+/// Alias for `DefaultHistoryParser` for naming consistency with `ZshHistoryParser` / `FishHistoryParser`.
+pub type BashHistoryParser = DefaultHistoryParser;
 pub use search::grep_filter;
 pub use shell::{Shell, detect_shell};
 
@@ -53,4 +56,24 @@ pub fn analyze(input: &str) -> Vec<(String, usize)> {
     let entries = parse_history(input);
     let counts = count_commands(&entries);
     rank_commands(counts)
+}
+
+/// Detect shell format and parse with the appropriate parser.
+///
+/// Dispatches to `DefaultHistoryParser`, `ZshHistoryParser`, or
+/// `FishHistoryParser` based on the content, then returns parsed entries
+/// including any timestamps the format provides.
+///
+/// ```rust
+/// let entries = shellist::parse_with_detected(": 1577836800:0;git push\nls\n");
+/// assert_eq!(entries.len(), 2);
+/// assert_eq!(entries[0].timestamp, Some(1577836800));
+/// assert_eq!(entries[1].command, "ls");
+/// ```
+pub fn parse_with_detected(input: &str) -> Vec<HistoryEntry> {
+    match detect_shell(input) {
+        Shell::Bash => DefaultHistoryParser::new().parse(input),
+        Shell::Zsh => ZshHistoryParser::new().parse(input),
+        Shell::Fish => FishHistoryParser::new().parse(input),
+    }
 }

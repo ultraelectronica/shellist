@@ -43,6 +43,16 @@ pub fn count_commands_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMa
     if depth == 0 {
         return counts;
     }
+    if depth == 1 {
+        for entry in entries {
+            let key = entry.command.trim().to_lowercase();
+            if key.is_empty() {
+                continue;
+            }
+            *counts.entry(key).or_insert(0) += 1;
+        }
+        return counts;
+    }
     for entry in entries {
         let mut tokens = entry.raw.split_whitespace().take(depth);
         let key = tokens.next();

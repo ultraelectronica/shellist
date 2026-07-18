@@ -55,7 +55,7 @@ Add a percentage column.
 Print summary statistics instead of the table.
 .TP
 .BR \-\-grep = PATTERN
-Filter command names with a regular expression.
+Filter command names with a regular expression (case-insensitive).
 .TP
 .BR \-\-asc
 Sort results in ascending order.
@@ -67,10 +67,11 @@ Only count commands on or after this date (requires timestamps).
 Only count commands on or before this date (requires timestamps).
 .TP
 .BR \-\-trend
-Show command counts bucketed over time.
+Show command counts bucketed over time (UTC-based).
 .TP
 .BR \-\-trend-bucket = day | week | month
 Bucket granularity for --trend (default: day).
+Also accepts \fBdaily\fP, \fBweekly\fP, \fBmonthly\fP.
 .TP
 .BR \-\-output = FILE
 Write output to FILE instead of stdout.
@@ -82,7 +83,7 @@ Print a shell completion script to stdout.
 Print this man page to stdout.
 .TP
 .BR \-\-help
-Print help to stderr.
+Print help to stdout.
 .SH EXAMPLES
 .PP
 shellist --top 10

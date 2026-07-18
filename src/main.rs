@@ -194,8 +194,8 @@ OUTPUT:
     --json               Output as JSON
     --csv                Output as CSV
     --stats              Print summary statistics
-    --trend              Usage bucketed over time (needs timestamps)
-    --trend-bucket day|week|month  Bucket for --trend (default: day)
+    --trend              Usage bucketed over time, UTC-based (needs timestamps)
+    --trend-bucket day|week|month|daily|weekly|monthly  Bucket for --trend (default: day)
     --output FILE        Write output to FILE instead of stdout
 
 INTEGRATION:
@@ -209,7 +209,10 @@ INTEGRATION:
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = parse_args();
+    execute(&mut args)
+}
 
+fn execute(args: &mut Args) -> Result<(), Box<dyn std::error::Error>> {
     if args.man {
         print!("{}", man_page());
         return Ok(());
@@ -220,7 +223,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let grep_re = match args.grep.as_deref() {
-        Some(p) => Some(Regex::new(p).map_err(|e| format!("invalid --grep pattern: {e}"))?),
+        Some(p) => Some(
+            Regex::new(&format!("(?i){p}")).map_err(|e| format!("invalid --grep pattern: {e}"))?,
+        ),
         None => None,
     };
     let since = match args.since.as_deref() {
@@ -238,19 +243,49 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
-    let content = read_input(&args)?;
-    let shell = args.shell.unwrap_or_else(|| detect_shell(&content));
+    let content = read_input(args)?;
+    let (output, was_empty) = core_pipeline(&content, args, grep_re, since, until)?;
+
+    if was_empty {
+        let source = source_label(args);
+        eprintln!("shellist: no commands to show from {source}");
+    } else {
+        write_output(&output, args.output.as_deref())?;
+    }
+    Ok(())
+}
+
+fn core_pipeline(
+    content: &str,
+    args: &mut Args,
+    grep_re: Option<Regex>,
+    since: Option<i64>,
+    until: Option<i64>,
+) -> Result<(String, bool), Box<dyn std::error::Error>> {
+    let shell = args.shell.unwrap_or_else(|| detect_shell(content));
     let mut entries = match shell {
-        Shell::Bash => shellist::DefaultHistoryParser::new().parse(&content),
-        Shell::Zsh => shellist::ZshHistoryParser::new().parse(&content),
-        Shell::Fish => shellist::FishHistoryParser::new().parse(&content),
+        Shell::Bash => shellist::DefaultHistoryParser::new().parse(content),
+        Shell::Zsh => shellist::ZshHistoryParser::new().parse(content),
+        Shell::Fish => shellist::FishHistoryParser::new().parse(content),
     };
 
     if since.is_some() || until.is_some() {
+        let had_timestamps = entries.iter().any(|e| e.timestamp.is_some());
         entries.retain(|e| match e.timestamp {
             Some(t) => since.is_none_or(|s| t as i64 >= s) && until.is_none_or(|u| t as i64 <= u),
             None => false,
         });
+        if entries.is_empty() && !had_timestamps {
+            eprintln!(
+                "shellist: no timestamped entries for date filter \
+                 (need zsh extended, fish, or timestamped history)"
+            );
+            return Ok((String::new(), false));
+        }
+        if entries.is_empty() {
+            eprintln!("shellist: date range excludes all entries");
+            return Ok((String::new(), false));
+        }
     }
 
     if args.trend {
@@ -261,10 +296,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 "shellist: no timestamped entries for --trend \
                  (need zsh extended, fish, or timestamped history)"
             );
-        } else {
-            write_output(&out, &args.output)?;
+            return Ok((String::new(), false));
         }
-        return Ok(());
+        return Ok((out, false));
     }
 
     let depth = args.depth.unwrap_or(1);
@@ -299,7 +333,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         ranked = top_n(ranked, n);
     }
 
-    let (output, was_empty_table) = if args.json {
+    let (output, was_empty) = if args.json {
         (format_json(&ranked), false)
     } else if args.csv {
         (format_csv(&ranked), false)
@@ -315,14 +349,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         (format_table(&ranked, &opts), false)
     };
 
-    if was_empty_table {
-        let source = source_label(&args);
-        eprintln!("shellist: no commands to show from {source}");
-    } else {
-        write_output(&output, &args.output)?;
-    }
-
-    Ok(())
+    Ok((output, was_empty))
 }
 
 fn read_input(args: &Args) -> Result<String, Box<dyn std::error::Error>> {
@@ -339,7 +366,9 @@ fn read_input(args: &Args) -> Result<String, Box<dyn std::error::Error>> {
         Some(shell) => shell.default_history_path(),
         None => default_history_path(),
     };
-    load_history_file(path.to_str().unwrap()).map_err(Into::into)
+    let path =
+        path.ok_or("HOME environment variable not set — cannot resolve default history path")?;
+    load_history_file(path).map_err(Into::into)
 }
 
 fn read_stdin() -> Result<String, Box<dyn std::error::Error>> {
@@ -358,13 +387,17 @@ fn source_label(args: &Args) -> String {
     if !std::io::stdin().is_terminal() {
         return "stdin".to_string();
     }
-    match args.shell {
-        Some(shell) => shell.default_history_path().to_string_lossy().into_owned(),
-        None => default_history_path().to_string_lossy().into_owned(),
-    }
+    let path = match args.shell {
+        Some(shell) => shell.default_history_path(),
+        None => default_history_path(),
+    };
+    path.map_or_else(
+        || "default history path".to_string(),
+        |p| p.to_string_lossy().into_owned(),
+    )
 }
 
-fn write_output(content: &str, output: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+fn write_output(content: &str, output: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     match output {
         Some(path) => std::fs::write(path, content)?,
         None => print!("{content}"),
