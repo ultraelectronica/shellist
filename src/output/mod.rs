@@ -12,6 +12,16 @@ pub use stats::{Stats, compute_stats, format_stats};
 pub use table::{TableOptions, format_table};
 pub use trend::{compute_trend, format_trend};
 
+pub(crate) const BAR_MAX: usize = 30;
+
+pub(crate) fn bar_len(count: usize, max: usize) -> usize {
+    if max == 0 {
+        0
+    } else {
+        ((count as f64 * BAR_MAX as f64) / max as f64).round() as usize
+    }
+}
+
 /// Column alignment for the shared table renderer.
 #[derive(Clone, Copy)]
 pub(crate) enum Align {
