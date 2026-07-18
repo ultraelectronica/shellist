@@ -1,4 +1,4 @@
-use super::{Align, render_table};
+use super::{Align, bar_len, render_table};
 use crate::date::{Bucket, bucket_key};
 use crate::models::HistoryEntry;
 use std::collections::BTreeMap;
@@ -22,16 +22,14 @@ pub fn format_trend(entries: &[HistoryEntry], bucket: Bucket) -> String {
         return String::new();
     }
     let max = trend.iter().map(|(_, c)| *c).max().unwrap_or(1);
-    const BAR_MAX: usize = 30;
 
     let mut rows = Vec::with_capacity(trend.len());
     for (key, count) in &trend {
-        let bar_len = if max == 0 {
-            0
-        } else {
-            ((*count as f64 * BAR_MAX as f64) / max as f64).round() as usize
-        };
-        rows.push(vec![key.clone(), count.to_string(), "#".repeat(bar_len)]);
+        rows.push(vec![
+            key.clone(),
+            count.to_string(),
+            "#".repeat(bar_len(*count, max)),
+        ]);
     }
 
     render_table(
