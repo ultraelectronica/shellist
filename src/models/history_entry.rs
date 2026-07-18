@@ -28,19 +28,6 @@ impl HistoryEntry {
         self.timestamp = Some(timestamp);
         self
     }
-
-    /// Create an entry with all fields, including an optional timestamp.
-    pub fn from_parts(
-        raw: impl Into<String>,
-        command: impl Into<String>,
-        timestamp: Option<u64>,
-    ) -> Self {
-        Self {
-            raw: raw.into(),
-            command: command.into(),
-            timestamp,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -74,8 +61,8 @@ mod tests {
     }
 
     #[test]
-    fn from_parts_builds_full_entry() {
-        let entry = HistoryEntry::from_parts("ls", "ls", Some(7));
+    fn with_timestamp_builds_full_entry() {
+        let entry = HistoryEntry::new("ls", "ls").with_timestamp(7);
         assert_eq!(entry.command, "ls");
         assert_eq!(entry.timestamp, Some(7));
     }
