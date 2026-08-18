@@ -23,7 +23,7 @@ pub mod shell;
 
 pub use aggregators::{
     command_key, count_commands, count_commands_at_depth, filter_by_min_frequency, filter_commands,
-    rank_commands, rank_commands_ascending, top_n,
+    last_used_at_depth, rank_commands, rank_commands_ascending, top_n,
 };
 pub use completions::completions;
 pub use date::{
@@ -33,8 +33,8 @@ pub use io::{default_history_path, load_history_file};
 pub use man::man_page;
 pub use models::{HistoryEntry, strip_command_prefixes};
 pub use output::{
-    Stats, TableOptions, compute_stats, compute_trend, format_csv, format_json, format_stats,
-    format_table, format_trend,
+    Stats, TableOptions, compute_hourly, compute_stats, compute_trend, format_csv, format_hourly,
+    format_json, format_stats, format_table, format_trend,
 };
 pub use parsers::{
     DefaultHistoryParser, FishHistoryParser, HistoryParser, ZshHistoryParser, parse_history,

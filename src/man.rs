@@ -31,7 +31,10 @@ Do not filter bash internals (set, shopt).
 Only show commands used at least N times.
 .TP
 .BR \-\-path = PATH
-Read history from PATH instead of the default file.
+Read history from PATH instead of the default file. Accepts
+comma-separated paths and may be repeated; each file's format is
+auto-detected separately, so zsh and fish histories can be merged
+into one ranking.
 .TP
 .BR \-\-shell = bash | zsh | fish
 Force a specific history parser instead of auto-detecting.
@@ -58,6 +61,9 @@ Add an ASCII bar chart column.
 .BR \-\-percent
 Add a percentage column.
 .TP
+.BR \-\-last\-used
+Add a last-run date column (table output only; requires timestamps).
+.TP
 .BR \-\-stats
 Print summary statistics instead of the table.
 .TP
@@ -81,6 +87,9 @@ Show command counts bucketed over time (UTC-based).
 Bucket granularity for --trend (default: day).
 Also accepts \fBdaily\fP, \fBweekly\fP, \fBmonthly\fP.
 .TP
+.BR \-\-hourly
+Show hour-of-day distribution (0–23 buckets, UTC; requires timestamps).
+.TP
 .BR \-\-output = FILE
 Write output to FILE instead of stdout.
 .TP
@@ -100,6 +109,8 @@ Print version and exit.
 shellist --top 10
 .PP
 shellist --shell zsh --path ~/.zsh_history --json
+.PP
+shellist --path ~/.zsh_history,~/.local/share/fish/fish_history --top 10
 .PP
 shellist --depth 2 --bars --percent
 .PP
