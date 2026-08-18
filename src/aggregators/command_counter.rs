@@ -73,6 +73,33 @@ pub fn count_commands_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMa
     counts
 }
 
+/// Max timestamp per command key at the given depth (commands never
+/// timestamped are absent from the map).
+///
+/// ```rust
+/// use shellist::{HistoryEntry, last_used_at_depth};
+/// let entries = [
+///     HistoryEntry::new("ls", "ls").with_timestamp(100),
+///     HistoryEntry::new("ls -la", "ls").with_timestamp(300),
+///     HistoryEntry::new("git", "git"),
+/// ];
+/// let last = last_used_at_depth(&entries, 1);
+/// assert_eq!(last.get("ls"), Some(&300));
+/// assert!(!last.contains_key("git"));
+/// ```
+pub fn last_used_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMap<String, u64> {
+    let mut last: HashMap<String, u64> = HashMap::new();
+    for entry in entries {
+        if let (Some(ts), Some(key)) = (entry.timestamp, command_key(entry, depth)) {
+            let slot = last.entry(key).or_insert(0);
+            if ts > *slot {
+                *slot = ts;
+            }
+        }
+    }
+    last
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,5 +208,34 @@ mod tests {
         let entry = HistoryEntry::new("   ", "");
         assert_eq!(command_key(&entry, 1), None);
         assert_eq!(command_key(&entry, 2), None);
+    }
+
+    #[test]
+    fn last_used_takes_max_per_key() {
+        let entries = vec![
+            HistoryEntry::new("ls", "ls").with_timestamp(100),
+            HistoryEntry::new("ls -la", "ls").with_timestamp(300),
+            HistoryEntry::new("ls", "ls").with_timestamp(200),
+        ];
+        let last = last_used_at_depth(&entries, 1);
+        assert_eq!(last.len(), 1);
+        assert_eq!(last["ls"], 300);
+    }
+
+    #[test]
+    fn last_used_respects_depth() {
+        let entries = vec![
+            HistoryEntry::new("git push", "git").with_timestamp(100),
+            HistoryEntry::new("git commit", "git").with_timestamp(200),
+        ];
+        let last = last_used_at_depth(&entries, 2);
+        assert_eq!(last.get("git push"), Some(&100));
+        assert_eq!(last.get("git commit"), Some(&200));
+    }
+
+    #[test]
+    fn last_used_skips_untimestamped() {
+        let entries = vec![HistoryEntry::new("ls", "ls")];
+        assert!(last_used_at_depth(&entries, 1).is_empty());
     }
 }
