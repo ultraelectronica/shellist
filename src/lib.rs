@@ -22,14 +22,16 @@ pub mod search;
 pub mod shell;
 
 pub use aggregators::{
-    count_commands, count_commands_at_depth, filter_by_min_frequency, filter_commands,
+    command_key, count_commands, count_commands_at_depth, filter_by_min_frequency, filter_commands,
     rank_commands, rank_commands_ascending, top_n,
 };
 pub use completions::completions;
-pub use date::{Bucket, bucket_key, civil_from_days, days_from_civil, parse_date_to_unix};
+pub use date::{
+    Bucket, bucket_key, civil_from_days, days_from_civil, parse_date_to_unix, resolve_date_spec,
+};
 pub use io::{default_history_path, load_history_file};
 pub use man::man_page;
-pub use models::HistoryEntry;
+pub use models::{HistoryEntry, strip_command_prefixes};
 pub use output::{
     Stats, TableOptions, compute_stats, compute_trend, format_csv, format_json, format_stats,
     format_table, format_trend,
