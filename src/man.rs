@@ -39,6 +39,13 @@ Force a specific history parser instead of auto-detecting.
 .BR \-\-depth = N
 Treat the first N whitespace tokens as the command key (default 1).
 .TP
+.BR \-\-no\-strip
+Do not strip leading \fBsudo\fR and \fBVAR=value\fR tokens from commands
+(stripped by default).
+.TP
+.BR \-\-collapse
+Merge adjacent identical raw lines (arrow-key reuse) before counting.
+.TP
 .BR \-\-json
 Output results as a JSON array.
 .TP
@@ -60,11 +67,12 @@ Filter command names with a regular expression (case-insensitive).
 .BR \-\-asc
 Sort results in ascending order.
 .TP
-.BR \-\-since = YYYY-MM-DD
+.BR \-\-since = DATE
 Only count commands on or after this date (requires timestamps).
+DATE is \fIYYYY-MM-DD\fR or a relative \fINd\fR / \fINw\fR / \fINm\fR (e.g. \fB7d\fR), resolved against now (UTC).
 .TP
-.BR \-\-until = YYYY-MM-DD
-Only count commands on or before this date (requires timestamps).
+.BR \-\-until = DATE
+Only count commands on or before this date (same formats, requires timestamps).
 .TP
 .BR \-\-trend
 Show command counts bucketed over time (UTC-based).
@@ -84,6 +92,9 @@ Print this man page to stdout.
 .TP
 .BR \-\-help
 Print help to stdout.
+.TP
+.BR \-\-version
+Print version and exit.
 .SH EXAMPLES
 .PP
 shellist --top 10
