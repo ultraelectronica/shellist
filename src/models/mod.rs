@@ -2,4 +2,4 @@
 
 pub mod history_entry;
 
-pub use history_entry::HistoryEntry;
+pub use history_entry::{HistoryEntry, strip_command_prefixes};
