@@ -45,11 +45,16 @@ auto-detected from the file contents.
 | `--min N`              | Only commands used at least N times                      |
 | `--grep PATTERN`       | Keep commands matching a regex (case-insensitive)       |
 | `--depth N`            | Treat the first N tokens as the command key (default 1)  |
-| `--since DATE`         | Only on/after DATE (`YYYY-MM-DD`, needs timestamps)      |
-| `--until DATE`         | Only on/before DATE (`YYYY-MM-DD`, needs timestamps)     |
+| `--no-strip`           | Don't strip leading `sudo` / `VAR=val` prefixes          |
+| `--collapse`           | Merge adjacent identical lines before counting           |
+| `--since DATE`         | Only on/after DATE (`YYYY-MM-DD` or `7d`/`2w`/`3m`, needs timestamps) |
+| `--until DATE`         | Only on/before DATE (same formats, needs timestamps)     |
 | `--asc`                | Sort ascending                                           |
 
 By default, `set` and `shopt` are ignored — these are bash internals that often leak into `.bash_history` from shell init scripts, not commands you actually typed. Use `--no-default-ignore` to see them.
+
+Leading `sudo` and `VAR=value` tokens are stripped before counting, so `sudo apt install`
+counts as `apt`. Use `--no-strip` to count prefixes literally.
 
 ### Output
 
@@ -64,6 +69,9 @@ By default, `set` and `shopt` are ignored — these are bash internals that ofte
 | `--trend-bucket day\|week\|month` | Bucket granularity for `--trend` (default day). Also `daily`,`weekly`,`monthly`|
 | `--output FILE`                 | Write output to FILE instead of stdout          |
 
+`--grep` works with `--trend` too: entries are filtered before bucketing, so
+`shellist --trend --grep '^git$'` shows usage of `git` over time.
+
 ### Integration
 
 | Flag                            | Description                                     |
@@ -71,6 +79,7 @@ By default, `set` and `shopt` are ignored — these are bash internals that ofte
 | `--completions bash\|zsh\|fish` | Print a shell completion script                 |
 | `--man`                         | Print the man page                              |
 | `--help`                        | Print help                                      |
+| `--version`                     | Print version and exit                          |
 
 Install completions, for example for bash:
 
@@ -142,6 +151,10 @@ cargo bench -- --save-baseline before
 # make changes...
 cargo bench -- --baseline before
 ```
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned improvements and progress.
 
 ## License
 
