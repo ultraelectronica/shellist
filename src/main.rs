@@ -18,10 +18,11 @@ use std::io::{IsTerminal, Read};
 use std::process;
 
 use shellist::{
-    Bucket, HistoryParser, Shell, TableOptions, completions, count_commands_at_depth,
+    Bucket, HistoryParser, Shell, TableOptions, command_key, completions, count_commands_at_depth,
     default_history_path, detect_shell, filter_by_min_frequency, filter_commands, format_csv,
     format_json, format_stats, format_table, format_trend, grep_filter, load_history_file,
-    man_page, parse_date_to_unix, rank_commands, rank_commands_ascending, top_n,
+    man_page, rank_commands, rank_commands_ascending, resolve_date_spec, strip_command_prefixes,
+    top_n,
 };
 
 use regex::Regex;
@@ -51,6 +52,8 @@ struct Args {
     output: Option<String>,
     completions: Option<Shell>,
     man: bool,
+    no_strip: bool,
+    collapse: bool,
 }
 
 impl Args {
@@ -77,6 +80,8 @@ impl Args {
             output: None,
             completions: None,
             man: false,
+            no_strip: false,
+            collapse: false,
         }
     }
 }
@@ -106,6 +111,10 @@ fn parse_args() -> Args {
                 print_help();
                 process::exit(0);
             }
+            "--version" => {
+                println!("shellist {}", env!("CARGO_PKG_VERSION"));
+                process::exit(0);
+            }
             "--top" => args.top = Some(parse_usize(need_value(&mut iter, "--top"), "--top")),
             "--min" => args.min_freq = Some(parse_usize(need_value(&mut iter, "--min"), "--min")),
             "--depth" => {
@@ -116,6 +125,8 @@ fn parse_args() -> Args {
                 args.ignore = val.split(',').map(|s| s.trim().to_lowercase()).collect();
             }
             "--no-default-ignore" => args.no_default_ignore = true,
+            "--no-strip" => args.no_strip = true,
+            "--collapse" => args.collapse = true,
             "--path" => args.path = Some(need_value(&mut iter, "--path")),
             "--shell" => {
                 let val = need_value(&mut iter, "--shell");
@@ -184,8 +195,10 @@ FILTERING:
     --min N              Only commands used at least N times
     --grep PATTERN       Keep commands matching a regex
     --depth N            Treat first N tokens as the command key (default 1)
-    --since DATE         Only on/after DATE (YYYY-MM-DD, needs timestamps)
-    --until DATE         Only on/before DATE (YYYY-MM-DD, needs timestamps)
+    --no-strip           Don't strip leading sudo / VAR=val prefixes
+    --collapse           Merge adjacent identical lines before counting
+    --since DATE         Only on/after DATE (YYYY-MM-DD or Nd/Nw/Nm, needs timestamps)
+    --until DATE         Only on/before DATE (same formats, needs timestamps)
     --asc                Sort ascending
 
 OUTPUT:
@@ -201,7 +214,8 @@ OUTPUT:
 INTEGRATION:
     --completions bash|zsh|fish  Print a completion script
     --man                Print the man page
-    --help               Print this help",
+    --help               Print this help
+    --version            Print version and exit",
         version = env!("CARGO_PKG_VERSION"),
         ignores = DEFAULT_IGNORE.join(", ")
     );
@@ -228,20 +242,21 @@ fn execute(args: &mut Args) -> Result<(), Box<dyn std::error::Error>> {
         ),
         None => None,
     };
-    let since = match args.since.as_deref() {
-        Some(d) => Some(
-            parse_date_to_unix(d)
-                .ok_or_else(|| format!("invalid --since date '{d}' (use YYYY-MM-DD)"))?,
-        ),
-        None => None,
-    };
-    let until = match args.until.as_deref() {
-        Some(d) => Some(
-            parse_date_to_unix(d)
-                .ok_or_else(|| format!("invalid --until date '{d}' (use YYYY-MM-DD)"))?,
-        ),
-        None => None,
-    };
+    let now = now_secs();
+    let since =
+        match args.since.as_deref() {
+            Some(d) => Some(resolve_date_spec(d, now).ok_or_else(|| {
+                format!("invalid --since date '{d}' (use YYYY-MM-DD or Nd/Nw/Nm)")
+            })?),
+            None => None,
+        };
+    let until =
+        match args.until.as_deref() {
+            Some(d) => Some(resolve_date_spec(d, now).ok_or_else(|| {
+                format!("invalid --until date '{d}' (use YYYY-MM-DD or Nd/Nw/Nm)")
+            })?),
+            None => None,
+        };
 
     let content = read_input(args)?;
     let (output, was_empty) = core_pipeline(&content, args, grep_re, since, until)?;
@@ -269,6 +284,21 @@ fn core_pipeline(
         Shell::Fish => shellist::FishHistoryParser::new().parse(content),
     };
 
+    if !args.no_strip {
+        for entry in &mut entries {
+            let stripped = strip_command_prefixes(&entry.raw);
+            if stripped.len() != entry.raw.len() {
+                entry.command = stripped.split_whitespace().next().unwrap_or("").to_string();
+                entry.raw = stripped.to_string();
+            }
+        }
+    }
+    if args.collapse {
+        entries.dedup_by(|a, b| a.raw == b.raw);
+    }
+
+    let depth = args.depth.unwrap_or(1);
+
     if since.is_some() || until.is_some() {
         let had_timestamps = entries.iter().any(|e| e.timestamp.is_some());
         entries.retain(|e| match e.timestamp {
@@ -290,6 +320,9 @@ fn core_pipeline(
 
     if args.trend {
         let bucket = args.trend_bucket.unwrap_or(Bucket::Day);
+        if let Some(re) = &grep_re {
+            entries.retain(|e| command_key(e, depth).is_some_and(|k| re.is_match(&k)));
+        }
         let out = format_trend(&entries, bucket);
         if out.is_empty() {
             eprintln!(
@@ -301,7 +334,6 @@ fn core_pipeline(
         return Ok((out, false));
     }
 
-    let depth = args.depth.unwrap_or(1);
     let counts = count_commands_at_depth(&entries, depth);
     let mut ranked = if args.asc {
         rank_commands_ascending(counts)
@@ -405,9 +437,109 @@ fn write_output(content: &str, output: Option<&str>) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
 fn main() {
     if let Err(e) = run() {
         eprintln!("shellist: {e}");
         process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pipeline(content: &str, args: &mut Args, grep: Option<&str>) -> (String, bool) {
+        let grep_re = grep.map(|p| Regex::new(&format!("(?i){p}")).unwrap());
+        core_pipeline(content, args, grep_re, None, None).unwrap()
+    }
+
+    fn json_output(out: &str) -> String {
+        out.replace(['\n', ' '], "")
+    }
+
+    #[test]
+    fn strips_sudo_and_env_prefixes_by_default() {
+        let mut args = Args::empty();
+        args.json = true;
+        let (out, _) = pipeline(
+            "sudo apt install\nFOO=bar ls\napt update\n",
+            &mut args,
+            None,
+        );
+        let json = json_output(&out);
+        assert!(json.contains("\"command\":\"apt\",\"count\":2"));
+        assert!(json.contains("\"command\":\"ls\",\"count\":1"));
+        assert!(!json.contains("sudo"));
+    }
+
+    #[test]
+    fn no_strip_keeps_prefixes() {
+        let mut args = Args::empty();
+        args.json = true;
+        args.no_strip = true;
+        let (out, _) = pipeline("sudo apt install\napt update\n", &mut args, None);
+        let json = json_output(&out);
+        assert!(json.contains("\"command\":\"sudo\",\"count\":1"));
+        assert!(json.contains("\"command\":\"apt\",\"count\":1"));
+    }
+
+    #[test]
+    fn strip_survives_bare_sudo() {
+        let mut args = Args::empty();
+        args.json = true;
+        let (out, _) = pipeline("sudo\nsudo ls\n", &mut args, None);
+        let json = json_output(&out);
+        assert!(json.contains("\"command\":\"sudo\",\"count\":1"));
+        assert!(json.contains("\"command\":\"ls\",\"count\":1"));
+    }
+
+    #[test]
+    fn collapse_merges_adjacent_duplicates() {
+        let mut args = Args::empty();
+        args.json = true;
+        args.collapse = true;
+        let (out, _) = pipeline("ls\nls\nls\ngit\n", &mut args, None);
+        let json = json_output(&out);
+        assert!(json.contains("\"command\":\"git\",\"count\":1"));
+        assert!(json.contains("\"command\":\"ls\",\"count\":1"));
+    }
+
+    #[test]
+    fn collapse_keeps_non_adjacent_duplicates() {
+        let mut args = Args::empty();
+        args.json = true;
+        args.collapse = true;
+        let (out, _) = pipeline("ls\ngit\nls\n", &mut args, None);
+        let json = json_output(&out);
+        assert!(json.contains("\"command\":\"ls\",\"count\":2"));
+    }
+
+    #[test]
+    fn trend_applies_grep_before_bucketing() {
+        let mut args = Args::empty();
+        args.trend = true;
+        let content = ": 1577836800:0;git push\n: 1577836800:0;git commit\n\
+                      : 1577836800:0;ls\n: 1577923200:0;ls\n";
+        let (out, _) = pipeline(content, &mut args, Some("^git$"));
+        assert!(out.contains("2020-01-01"));
+        assert!(out.contains(" 2 "));
+        assert!(!out.contains("2020-01-02"));
+    }
+
+    #[test]
+    fn trend_grep_respects_depth() {
+        let mut args = Args::empty();
+        args.trend = true;
+        args.depth = Some(2);
+        let content = ": 1577836800:0;git push\n: 1577836800:0;git commit\n: 1577836800:0;ls\n";
+        let (out, _) = pipeline(content, &mut args, Some("^git commit$"));
+        assert!(out.contains("2020-01-01"));
+        assert!(out.contains(" 1 "));
     }
 }
