@@ -10,7 +10,7 @@ pub use csv::format_csv;
 pub use json::format_json;
 pub use stats::{Stats, compute_stats, format_stats};
 pub use table::{TableOptions, format_table};
-pub use trend::{compute_trend, format_trend};
+pub use trend::{compute_hourly, compute_trend, format_hourly, format_trend};
 
 pub(crate) const BAR_MAX: usize = 30;
 

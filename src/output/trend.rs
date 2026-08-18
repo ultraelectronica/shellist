@@ -39,6 +39,39 @@ pub fn format_trend(entries: &[HistoryEntry], bucket: Bucket) -> String {
     )
 }
 
+/// Hour-of-day distribution (0–23, UTC) of timestamped entries,
+/// sorted by hour. Only hours with data appear.
+pub fn compute_hourly(entries: &[HistoryEntry]) -> Vec<(String, usize)> {
+    let mut counts: BTreeMap<u32, usize> = BTreeMap::new();
+    for entry in entries {
+        if let Some(ts) = entry.timestamp {
+            *counts.entry(((ts / 3600) % 24) as u32).or_insert(0) += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .map(|(h, c)| (format!("{h:02}"), c))
+        .collect()
+}
+
+/// Format an hour-of-day distribution table (Hour | Count | Bars).
+pub fn format_hourly(entries: &[HistoryEntry]) -> String {
+    let hourly = compute_hourly(entries);
+    if hourly.is_empty() {
+        return String::new();
+    }
+    let max = hourly.iter().map(|(_, c)| *c).max().unwrap_or(1);
+    let rows: Vec<Vec<String>> = hourly
+        .iter()
+        .map(|(h, c)| vec![h.clone(), c.to_string(), "#".repeat(bar_len(*c, max))])
+        .collect();
+    render_table(
+        &["Hour".to_string(), "Count".to_string(), "Bars".to_string()],
+        &rows,
+        &[Align::Right, Align::Right, Align::Left],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,5 +122,33 @@ mod tests {
         let e = vec![HistoryEntry::new("ls", "ls")];
         assert!(format_trend(&e, Bucket::Day).is_empty());
         assert!(compute_trend(&e, Bucket::Day).is_empty());
+    }
+
+    #[test]
+    fn hourly_buckets_by_utc_hour() {
+        // 2020-01-01T00:00:00Z and 2020-01-02T05:00:00Z.
+        let e = vec![
+            HistoryEntry::new("ls", "ls").with_timestamp(1_577_836_800),
+            HistoryEntry::new("ls", "ls").with_timestamp(1_577_836_900),
+            HistoryEntry::new("git", "git").with_timestamp(1_577_836_800 + 3600 * 5),
+        ];
+        let h = compute_hourly(&e);
+        assert_eq!(h, vec![("00".to_string(), 2), ("05".to_string(), 1)]);
+    }
+
+    #[test]
+    fn hourly_format_has_headers() {
+        let e = vec![HistoryEntry::new("ls", "ls").with_timestamp(1_577_840_000)];
+        let out = format_hourly(&e);
+        assert!(out.contains("Hour"));
+        assert!(out.contains("Count"));
+        assert!(out.contains("Bars"));
+    }
+
+    #[test]
+    fn hourly_empty_when_no_timestamps() {
+        let e = vec![HistoryEntry::new("ls", "ls")];
+        assert!(format_hourly(&e).is_empty());
+        assert!(compute_hourly(&e).is_empty());
     }
 }
