@@ -26,6 +26,8 @@ const FLAGS: &[&str] = &[
     "--stats",
     "--trend",
     "--trend-bucket",
+    "--hourly",
+    "--last-used",
     "--output",
     "--completions",
     "--man",
@@ -106,6 +108,8 @@ _shellist() {
         '--until[End date YYYY-MM-DD or Nd/Nw/Nm]:date:'
         '--trend[Show usage over time]'
         '--trend-bucket[Trend bucket]:bucket:(day week month)'
+        '--hourly[Show hour-of-day distribution]'
+        '--last-used[Add last-run date column]'
         '--output[Write to file]:file:_files'
         '--completions[Print completion script]:shell:(bash zsh fish)'
         '--man[Print man page]'
@@ -162,6 +166,8 @@ fn description(flag: &str) -> &'static str {
         "--until" => "End date YYYY-MM-DD or Nd/Nw/Nm",
         "--trend" => "Show usage over time",
         "--trend-bucket" => "Trend bucket",
+        "--hourly" => "Show hour-of-day distribution",
+        "--last-used" => "Add last-run date column",
         "--output" => "Write to file",
         "--completions" => "Print completion script",
         "--man" => "Print man page",
