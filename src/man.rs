@@ -31,13 +31,23 @@ Do not filter bash internals (set, shopt).
 Only show commands used at least N times.
 .TP
 .BR \-\-path = PATH
-Read history from PATH instead of the default file.
+Read history from PATH instead of the default file. Accepts
+comma-separated paths and may be repeated; each file's format is
+auto-detected separately, so zsh and fish histories can be merged
+into one ranking.
 .TP
 .BR \-\-shell = bash | zsh | fish
 Force a specific history parser instead of auto-detecting.
 .TP
 .BR \-\-depth = N
 Treat the first N whitespace tokens as the command key (default 1).
+.TP
+.BR \-\-no\-strip
+Do not strip leading \fBsudo\fR and \fBVAR=value\fR tokens from commands
+(stripped by default).
+.TP
+.BR \-\-collapse
+Merge adjacent identical raw lines (arrow-key reuse) before counting.
 .TP
 .BR \-\-json
 Output results as a JSON array.
@@ -51,6 +61,9 @@ Add an ASCII bar chart column.
 .BR \-\-percent
 Add a percentage column.
 .TP
+.BR \-\-last\-used
+Add a last-run date column (table output only; requires timestamps).
+.TP
 .BR \-\-stats
 Print summary statistics instead of the table.
 .TP
@@ -60,11 +73,12 @@ Filter command names with a regular expression (case-insensitive).
 .BR \-\-asc
 Sort results in ascending order.
 .TP
-.BR \-\-since = YYYY-MM-DD
+.BR \-\-since = DATE
 Only count commands on or after this date (requires timestamps).
+DATE is \fIYYYY-MM-DD\fR or a relative \fINd\fR / \fINw\fR / \fINm\fR (e.g. \fB7d\fR), resolved against now (UTC).
 .TP
-.BR \-\-until = YYYY-MM-DD
-Only count commands on or before this date (requires timestamps).
+.BR \-\-until = DATE
+Only count commands on or before this date (same formats, requires timestamps).
 .TP
 .BR \-\-trend
 Show command counts bucketed over time (UTC-based).
@@ -72,6 +86,9 @@ Show command counts bucketed over time (UTC-based).
 .BR \-\-trend-bucket = day | week | month
 Bucket granularity for --trend (default: day).
 Also accepts \fBdaily\fP, \fBweekly\fP, \fBmonthly\fP.
+.TP
+.BR \-\-hourly
+Show hour-of-day distribution (0–23 buckets, UTC; requires timestamps).
 .TP
 .BR \-\-output = FILE
 Write output to FILE instead of stdout.
@@ -84,11 +101,16 @@ Print this man page to stdout.
 .TP
 .BR \-\-help
 Print help to stdout.
+.TP
+.BR \-\-version
+Print version and exit.
 .SH EXAMPLES
 .PP
 shellist --top 10
 .PP
 shellist --shell zsh --path ~/.zsh_history --json
+.PP
+shellist --path ~/.zsh_history,~/.local/share/fish/fish_history --top 10
 .PP
 shellist --depth 2 --bars --percent
 .PP

@@ -22,6 +22,31 @@ pub fn count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize> {
     count_commands_at_depth(entries, 1)
 }
 
+/// The lowercased count key for an entry at the given `depth`, if any.
+///
+/// `depth = 1` uses the base command; deeper keys take the first `depth`
+/// whitespace tokens of the raw line.
+pub fn command_key(entry: &HistoryEntry, depth: usize) -> Option<String> {
+    if depth == 0 {
+        return None;
+    }
+    if depth == 1 {
+        let key = entry.command.trim().to_lowercase();
+        return (!key.is_empty()).then_some(key);
+    }
+    let mut tokens = entry.raw.split_whitespace().take(depth);
+    let mut s = String::new();
+    match tokens.next() {
+        Some(first) => s.push_str(first),
+        None => return None,
+    }
+    for t in tokens {
+        s.push(' ');
+        s.push_str(t);
+    }
+    (!s.is_empty()).then(|| s.to_lowercase())
+}
+
 /// Count commands treating the first `depth` whitespace tokens as the key.
 ///
 /// `depth = 1` is the default (first token only). `depth = 2` ranks
@@ -40,39 +65,39 @@ pub fn count_commands(entries: &[HistoryEntry]) -> HashMap<String, usize> {
 /// ```
 pub fn count_commands_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMap<String, usize> {
     let mut counts = HashMap::new();
-    if depth == 0 {
-        return counts;
-    }
-    if depth == 1 {
-        for entry in entries {
-            let key = entry.command.trim().to_lowercase();
-            if key.is_empty() {
-                continue;
-            }
+    for entry in entries {
+        if let Some(key) = command_key(entry, depth) {
             *counts.entry(key).or_insert(0) += 1;
         }
-        return counts;
-    }
-    for entry in entries {
-        let mut tokens = entry.raw.split_whitespace().take(depth);
-        let key = tokens.next();
-        let key = match key {
-            Some(first) => {
-                let mut s = String::from(first);
-                for t in tokens {
-                    s.push(' ');
-                    s.push_str(t);
-                }
-                s.to_lowercase()
-            }
-            None => continue,
-        };
-        if key.is_empty() {
-            continue;
-        }
-        *counts.entry(key).or_insert(0) += 1;
     }
     counts
+}
+
+/// Max timestamp per command key at the given depth (commands never
+/// timestamped are absent from the map).
+///
+/// ```rust
+/// use shellist::{HistoryEntry, last_used_at_depth};
+/// let entries = [
+///     HistoryEntry::new("ls", "ls").with_timestamp(100),
+///     HistoryEntry::new("ls -la", "ls").with_timestamp(300),
+///     HistoryEntry::new("git", "git"),
+/// ];
+/// let last = last_used_at_depth(&entries, 1);
+/// assert_eq!(last.get("ls"), Some(&300));
+/// assert!(!last.contains_key("git"));
+/// ```
+pub fn last_used_at_depth(entries: &[HistoryEntry], depth: usize) -> HashMap<String, u64> {
+    let mut last: HashMap<String, u64> = HashMap::new();
+    for entry in entries {
+        if let (Some(ts), Some(key)) = (entry.timestamp, command_key(entry, depth)) {
+            let slot = last.entry(key).or_insert(0);
+            if ts > *slot {
+                *slot = ts;
+            }
+        }
+    }
+    last
 }
 
 #[cfg(test)]
@@ -168,5 +193,49 @@ mod tests {
         let entries = vec![HistoryEntry::new("git push", "git")];
         let d5 = count_commands_at_depth(&entries, 5);
         assert_eq!(d5.get("git push"), Some(&1));
+    }
+
+    #[test]
+    fn command_key_depth_uses_base_vs_raw() {
+        let entry = HistoryEntry::new("Git Push Origin", "Git");
+        assert_eq!(command_key(&entry, 1).as_deref(), Some("git"));
+        assert_eq!(command_key(&entry, 2).as_deref(), Some("git push"));
+        assert_eq!(command_key(&entry, 0), None);
+    }
+
+    #[test]
+    fn command_key_skips_empty() {
+        let entry = HistoryEntry::new("   ", "");
+        assert_eq!(command_key(&entry, 1), None);
+        assert_eq!(command_key(&entry, 2), None);
+    }
+
+    #[test]
+    fn last_used_takes_max_per_key() {
+        let entries = vec![
+            HistoryEntry::new("ls", "ls").with_timestamp(100),
+            HistoryEntry::new("ls -la", "ls").with_timestamp(300),
+            HistoryEntry::new("ls", "ls").with_timestamp(200),
+        ];
+        let last = last_used_at_depth(&entries, 1);
+        assert_eq!(last.len(), 1);
+        assert_eq!(last["ls"], 300);
+    }
+
+    #[test]
+    fn last_used_respects_depth() {
+        let entries = vec![
+            HistoryEntry::new("git push", "git").with_timestamp(100),
+            HistoryEntry::new("git commit", "git").with_timestamp(200),
+        ];
+        let last = last_used_at_depth(&entries, 2);
+        assert_eq!(last.get("git push"), Some(&100));
+        assert_eq!(last.get("git commit"), Some(&200));
+    }
+
+    #[test]
+    fn last_used_skips_untimestamped() {
+        let entries = vec![HistoryEntry::new("ls", "ls")];
+        assert!(last_used_at_depth(&entries, 1).is_empty());
     }
 }

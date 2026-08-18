@@ -71,6 +71,65 @@ pub fn parse_date_to_unix(s: &str) -> Option<i64> {
     Some(days * 86_400)
 }
 
+/// Resolve a date spec — `YYYY-MM-DD` or relative `Nd` / `Nw` / `Nm` — against
+/// `now` (Unix seconds) into a start-of-day UTC timestamp.
+///
+/// ```rust
+/// use shellist::date::resolve_date_spec;
+/// let now = 1_577_836_800; // 2020-01-01
+/// assert_eq!(resolve_date_spec("7d", now), Some(1_577_232_000)); // 2019-12-25
+/// assert_eq!(resolve_date_spec("2020-01-01", now), Some(1_577_836_800));
+/// assert_eq!(resolve_date_spec("7x", now), None);
+/// ```
+pub fn resolve_date_spec(spec: &str, now: i64) -> Option<i64> {
+    if let Some(ts) = parse_date_to_unix(spec) {
+        return Some(ts);
+    }
+    let spec = spec.trim();
+    let split = spec.len().checked_sub(1)?;
+    let (num, unit) = spec.split_at(split);
+    let n: i64 = num.parse().ok()?;
+    if n < 0 {
+        return None;
+    }
+    let today = now.div_euclid(86_400);
+    let days = match unit {
+        "d" => today.checked_sub(n)?,
+        "w" => today.checked_sub(7_i64.checked_mul(n)?)?,
+        "m" => {
+            let (y, m, d) = civil_from_days(today);
+            sub_months(y, m, d, n)?
+        }
+        _ => return None,
+    };
+    Some(days * 86_400)
+}
+
+fn sub_months(y: i64, m: u32, d: u32, n: i64) -> Option<i64> {
+    let total = (y * 12 + m as i64 - 1).checked_sub(n)?;
+    let ny = total.div_euclid(12);
+    let nm = total.rem_euclid(12) as u32 + 1;
+    Some(days_from_civil(ny, nm, d.min(days_in_month(ny, nm))))
+}
+
+fn days_in_month(y: i64, m: u32) -> u32 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        _ => {
+            if is_leap(y) {
+                29
+            } else {
+                28
+            }
+        }
+    }
+}
+
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
 /// A sortable, human-readable bucket key for a Unix timestamp.
 pub fn bucket_key(ts: u64, bucket: Bucket) -> String {
     let days = (ts / 86_400) as i64;
@@ -155,6 +214,70 @@ mod tests {
         let key = bucket_key(1_577_923_200, Bucket::Week); // 2020-01-02 (Thursday)
         // ISO week 1 of 2020 starts Monday 2019-12-30.
         assert_eq!(key, "2019-12-30");
+    }
+
+    #[test]
+    fn resolve_relative_days() {
+        let now = days_from_civil(2020, 1, 15) * 86400 + 43200; // midday 2020-01-15
+        assert_eq!(
+            resolve_date_spec("7d", now),
+            Some(days_from_civil(2020, 1, 8) * 86400)
+        );
+        assert_eq!(
+            resolve_date_spec("0d", now),
+            Some(days_from_civil(2020, 1, 15) * 86400)
+        );
+    }
+
+    #[test]
+    fn resolve_relative_weeks() {
+        let now = days_from_civil(2020, 1, 15) * 86400;
+        assert_eq!(
+            resolve_date_spec("2w", now),
+            Some(days_from_civil(2020, 1, 1) * 86400)
+        );
+    }
+
+    #[test]
+    fn resolve_relative_months() {
+        let now = days_from_civil(2020, 1, 15) * 86400;
+        assert_eq!(
+            resolve_date_spec("3m", now),
+            Some(days_from_civil(2019, 10, 15) * 86400)
+        );
+    }
+
+    #[test]
+    fn resolve_months_clamps_day() {
+        let now = days_from_civil(2020, 3, 31) * 86400;
+        assert_eq!(
+            resolve_date_spec("1m", now),
+            Some(days_from_civil(2020, 2, 29) * 86400)
+        );
+        let now = days_from_civil(2019, 3, 31) * 86400;
+        assert_eq!(
+            resolve_date_spec("1m", now),
+            Some(days_from_civil(2019, 2, 28) * 86400)
+        );
+    }
+
+    #[test]
+    fn resolve_absolute_passthrough() {
+        let now = days_from_civil(2020, 1, 15) * 86400;
+        assert_eq!(
+            resolve_date_spec("2019-06-01", now),
+            Some(days_from_civil(2019, 6, 1) * 86400)
+        );
+    }
+
+    #[test]
+    fn resolve_rejects_invalid() {
+        let now = 0;
+        assert_eq!(resolve_date_spec("7x", now), None);
+        assert_eq!(resolve_date_spec("d", now), None);
+        assert_eq!(resolve_date_spec("-3d", now), None);
+        assert_eq!(resolve_date_spec("2020-01", now), None);
+        assert_eq!(resolve_date_spec("", now), None);
     }
 
     #[test]
