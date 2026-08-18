@@ -21,11 +21,11 @@ Short-term improvement candidates. Check items off when done.
 
 ## Analysis features
 
-- [ ] `--last-used` column
+- [x] `--last-used` column
       Show date each command was last run (needs timestamps). Max ts per key.
-- [ ] `--hourly`
+- [x] `--hourly`
       Hour-of-day distribution (0–23 buckets). Reuses trend machinery.
-- [ ] Multi-file input
+- [x] Multi-file input
       `--path` accepts comma-separated paths or repeats. Merging zsh + fish
       history into one ranking is the main use case.
 
