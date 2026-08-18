@@ -11,6 +11,8 @@ const FLAGS: &[&str] = &[
     "--top",
     "--ignore",
     "--no-default-ignore",
+    "--no-strip",
+    "--collapse",
     "--min",
     "--grep",
     "--depth",
@@ -28,6 +30,7 @@ const FLAGS: &[&str] = &[
     "--completions",
     "--man",
     "--help",
+    "--version",
 ];
 
 fn opts_line() -> String {
@@ -86,6 +89,8 @@ _shellist() {
         '--top[Show top N commands]:N:'
         '--ignore[Exclude commands (comma-separated)]:list:'
         '--no-default-ignore[Do not filter bash internals (set, shopt)]'
+        '--no-strip[Do not strip leading sudo / VAR=val prefixes]'
+        '--collapse[Merge adjacent identical lines before counting]'
         '--min[Only commands with count >= N]:N:'
         '--path[History file path]:file:_files'
         '--shell[Force shell parser]:shell:(bash zsh fish)'
@@ -97,14 +102,15 @@ _shellist() {
         '--stats[Show summary statistics]'
         '--grep[Regex filter on command names]:pattern:'
         '--asc[Sort ascending]'
-        '--since[Start date YYYY-MM-DD]:date:'
-        '--until[End date YYYY-MM-DD]:date:'
+        '--since[Start date YYYY-MM-DD or Nd/Nw/Nm]:date:'
+        '--until[End date YYYY-MM-DD or Nd/Nw/Nm]:date:'
         '--trend[Show usage over time]'
         '--trend-bucket[Trend bucket]:bucket:(day week month)'
         '--output[Write to file]:file:_files'
         '--completions[Print completion script]:shell:(bash zsh fish)'
         '--man[Print man page]'
         '--help[Print help]'
+        '--version[Print version]'
     )
     _arguments -s $opts
 }
@@ -139,6 +145,8 @@ fn description(flag: &str) -> &'static str {
         "--top" => "Show top N commands",
         "--ignore" => "Exclude commands (comma-separated)",
         "--no-default-ignore" => "Do not filter bash internals (set, shopt)",
+        "--no-strip" => "Do not strip leading sudo / VAR=val prefixes",
+        "--collapse" => "Merge adjacent identical lines before counting",
         "--min" => "Only commands with count >= N",
         "--path" => "History file path",
         "--shell" => "Force shell parser",
@@ -150,14 +158,15 @@ fn description(flag: &str) -> &'static str {
         "--stats" => "Show summary statistics",
         "--grep" => "Regex filter on command names",
         "--asc" => "Sort ascending",
-        "--since" => "Start date YYYY-MM-DD",
-        "--until" => "End date YYYY-MM-DD",
+        "--since" => "Start date YYYY-MM-DD or Nd/Nw/Nm",
+        "--until" => "End date YYYY-MM-DD or Nd/Nw/Nm",
         "--trend" => "Show usage over time",
         "--trend-bucket" => "Trend bucket",
         "--output" => "Write to file",
         "--completions" => "Print completion script",
         "--man" => "Print man page",
         "--help" => "Print help",
+        "--version" => "Print version",
         _ => "option",
     }
 }
